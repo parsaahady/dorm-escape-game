@@ -87,7 +87,7 @@ let frames = 0, overs = 0, catches = 0, shieldSeen = false, powSeen = new Set();
 function invariants(tag) {
   const S = FE.state();
   assert(isFinite(S.x) && S.x >= -1.0001 && S.x <= 1.0001, tag + ': x out of bounds ' + S.x);
-  assert(isFinite(S.speed) && S.speed > 0 && S.speed < 100, tag + ': bad speed ' + S.speed);
+  assert(isFinite(S.speed) && S.speed > 0 && S.speed < 45, tag + ': bad speed ' + S.speed);
   assert(isFinite(S.dist) && S.dist >= 0, tag + ': bad dist');
   assert(S.jumpY >= -0.001, tag + ': jumpY negative');
   assert(S.ents.length < 400, tag + ': entity leak ' + S.ents.length);
@@ -149,8 +149,8 @@ function botStep() {
       if (!threat || rel < threat.rel) threat = { t: e.otype, rel };
   }
   if (!threat) return;
-  if (threat.t === 'low') { if (threat.rel < 4 && !S.airborne && S.slideT <= 0) FE.input('U'); }
-  else if (threat.t === 'high') { if (threat.rel < 4 && S.slideT <= 0 && !S.airborne) FE.input('D'); }
+  if (threat.t === 'low') { if (threat.rel < 5 && !S.airborne && S.slideT <= 0) FE.input('U'); }
+  else if (threat.t === 'high') { if (threat.rel < 5 && S.slideT <= 0 && !S.airborne) FE.input('D'); }
   else if (threat.rel < 10 && S.targetLane === myLane) {
     for (const dl of [-1, 1]) {
       const nl = myLane + dl;
@@ -181,6 +181,19 @@ for (let i = 0; i < 60 * 150; i++) {
 console.log('bot survived dist:', Math.floor(botDist), 'mode:', FE.state().mode);
 assert(botDist > 800, 'bot should reach zone 2+ (dist>800), got ' + Math.floor(botDist));
 assert(powSeen.size > 0, 'powerups never spawned in long bot run');
+
+/* آهنربا + پاداش پرفکت: همهٔ سیگارهای هر خط باید شمرده شوند */
+FE.start('farham');
+FE.state().pows.magnet = 99;
+let perfects = 0;
+for (let i = 0; i < 60 * 25; i++) {
+  botStep();
+  FE.step(1 / 60); frames++;
+  perfects = FE.state().perfects;
+  if (FE.state().mode === 'over') { FE.start('farham'); FE.state().pows.magnet = 99; }
+}
+console.log('perfect lines with magnet:', perfects, '| cigs:', FE.state().cigs);
+assert(perfects > 0, 'magnet run should produce perfect-line bonuses');
 
 /* سوائپ سریع پشت‌سرهم — نباید حالت را خراب کند */
 for (let i = 0; i < 40; i++) { FE.input('L'); FE.input('R'); FE.input('U'); FE.input('D'); FE.step(1 / 60); }
