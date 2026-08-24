@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1440">
+<title>فرار از خوابگاه 🚬 — بازی دونده بی‌پایان دانشجویی</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚬</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- ======= HUD ======= -->
+  <div id="hud" class="hidden">
+    <div id="hudTop">
+      <div class="hudBox" id="hudCigsBox"><span class="cigIcon"></span><b id="hudCigs">0</b></div>
+      <div class="hudBox" id="hudScoreBox">⭐ <b id="hudScore">0</b></div>
+      <div class="hudBox" id="hudDistBox">🏃 <b id="hudDist">0</b> م</div>
+      <div id="hudBtns">
+        <button id="btnMute" class="iconBtn" aria-label="صدا">🔊</button>
+        <button id="btnPause" class="iconBtn" aria-label="توقف">⏸</button>
+      </div>
+    </div>
+    <div id="dangerWrap" title="فاصله تا گیر افتادن!">
+      <span id="dangerLabel">👮 انتظامات</span>
+      <div id="dangerBar"><div id="dangerFill"></div></div>
+    </div>
+    <div id="hudPows"></div>
+  </div>
+
+  <!-- ======= منوی اصلی ======= -->
+  <section id="menu" class="screen">
+    <div class="logoWrap">
+      <div class="logoEmoji">🏃♂️💨</div>
+      <h1 class="logo">فرار از خوابگاه</h1>
+      <p class="tagline">یه دورِ دیگه، یه نخِ دیگه… نذار انتظامات بگیرتت! 🚬</p>
+    </div>
+    <div class="menuBtns">
+      <button id="btnStart" class="bigBtn green">▶ شروع بازی</button>
+      <button id="btnSelect" class="bigBtn blue">😎 انتخاب کاراکتر</button>
+      <button id="btnRecords" class="bigBtn purple">🏆 رکوردها</button>
+      <button id="btnHelp" class="bigBtn orange">❓ راهنما</button>
+    </div>
+    <p class="credit">نسخهٔ دانشجویی • دانشگاه شهید بهشتی • شبِ خوابگاه 🌙</p>
+  </section>
+
+  <!-- ======= انتخاب کاراکتر ======= -->
+  <section id="select" class="screen hidden">
+    <h2 class="screenTitle">کاراکترت رو انتخاب کن 😎</h2>
+    <div id="cards"></div>
+    <div class="rowBtns">
+      <button id="btnPlaySel" class="bigBtn green">بزن بریم! 🏃</button>
+      <button id="btnBackSel" class="bigBtn gray">برگشت</button>
+    </div>
+  </section>
+
+  <!-- ======= رکوردها ======= -->
+  <section id="records" class="screen hidden">
+    <h2 class="screenTitle">🏆 تابلوی افتخارات خوابگاه</h2>
+    <div id="recList"></div>
+    <div class="rowBtns"><button id="btnBackRec" class="bigBtn gray">برگشت</button></div>
+  </section>
+
+  <!-- ======= پایان بازی ======= -->
+  <section id="over" class="screen hidden">
+    <div class="overCard">
+      <div class="overEmoji">🚔</div>
+      <h2 id="overTitle">گیر افتادی!</h2>
+      <div id="newRec" class="badge hidden">🎉 رکورد جدید!</div>
+      <div class="overStats">
+        <div class="stat"><span>امتیاز</span><b id="ovScore">0</b></div>
+        <div class="stat"><span>نخ سیگار 🚬</span><b id="ovCigs">0</b></div>
+        <div class="stat"><span>مسافت</span><b id="ovDist">0 م</b></div>
+        <div class="stat best"><span>بهترینِ تو</span><b id="ovBest">0</b></div>
+      </div>
+      <div class="rowBtns">
+        <button id="btnRetry" class="bigBtn green">🔁 دوباره تلاش کن</button>
+        <button id="btnShare" class="bigBtn blue">📤 اشتراک امتیاز</button>
+        <button id="btnMenuOver" class="bigBtn gray">منو</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======= آموزش ======= -->
+  <div id="tutorial" class="overlay hidden">
+    <div class="ovCard">
+      <h2>چطوری بازی کنم؟ 🤔</h2>
+      <div class="tutGrid">
+        <div class="tut"><span class="tutIc">⬅️➡️</span><p>کشیدن به چپ/راست<br>یا کلیدهای جهت / A D<br>= عوض کردن لاین</p></div>
+        <div class="tut"><span class="tutIc">⬆️</span><p>کشیدن به بالا / W<br>= پرش از روی مانع</p></div>
+        <div class="tut"><span class="tutIc">⬇️</span><p>کشیدن به پایین / S<br>= سرخوردن زیر مانع</p></div>
+        <div class="tut"><span class="tutIc">🚬</span><p>نخ‌سیگار جمع کن،<br>پاورآپ بردار، و از دست<br>انتظامات فرار کن! 👮</p></div>
+      </div>
+      <button id="btnTutOk" class="bigBtn green">باشه، بزن بریم! 😎</button>
+    </div>
+  </div>
+
+  <!-- ======= توقف ======= -->
+  <div id="pauseOv" class="overlay hidden">
+    <div class="ovCard">
+      <h2>⏸ استراحت بین فرار</h2>
+      <p class="pauseHint">انتظامات هم ایستاده، نفس بگیر! 😮‍💨</p>
+      <div class="rowBtns col">
+        <button id="btnResume" class="bigBtn green">ادامه ▶</button>
+        <button id="btnRestartP" class="bigBtn blue">شروع دوباره 🔁</button>
+        <button id="btnMenuP" class="bigBtn gray">منوی اصلی</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="hidden"></div>
+</div>
+<noscript><p style="color:#fff;text-align:center;padding:2rem">برای اجرای بازی جاوااسکریپت را فعال کنید.</p></noscript>
+<script src="main.js"></script>
+</body>
+</html>

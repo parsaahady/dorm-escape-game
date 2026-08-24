@@ -1,0 +1,178 @@
+/* ============ فرار از خوابگاه — style.css ============ */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+body{
+  font-family:'Vazirmatn',Tahoma,'Segoe UI',sans-serif;
+  background:#12102e;color:#fff;
+  user-select:none;-webkit-user-select:none;
+  touch-action:manipulation;
+}
+#app{position:fixed;inset:0}
+#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;background:#12102e}
+.hidden{display:none!important}
+
+/* ---------- صفحات ---------- */
+.screen{
+  position:absolute;inset:0;z-index:20;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,2.5vh,24px);
+  padding:calc(12px + env(safe-area-inset-top)) 14px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,#1b1550 0%,#2a1e6e 45%,#4a2a8a 100%);
+  overflow-y:auto;
+  text-align:center;
+}
+.screen::before{ /* ستاره‌ها */
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(2px 2px at 20% 30%,#fff 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 70% 12%,#ffe9a8 50%,transparent 51%),
+    radial-gradient(2px 2px at 85% 40%,#fff 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 40% 8%,#fff 50%,transparent 51%),
+    radial-gradient(2px 2px at 10% 60%,#cfd8ff 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 55% 25%,#fff 50%,transparent 51%);
+}
+.screenTitle{font-size:clamp(18px,4.5vw,28px);font-weight:900;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+
+/* ---------- منو ---------- */
+.logoWrap{position:relative;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.logoEmoji{font-size:clamp(40px,10vw,72px);filter:drop-shadow(0 4px 0 rgba(0,0,0,.3))}
+.logo{
+  font-size:clamp(30px,8vw,58px);font-weight:900;color:#ffd93d;
+  text-shadow:0 4px 0 #b3479a,0 8px 18px rgba(0,0,0,.5);
+  letter-spacing:-1px;
+}
+.tagline{font-size:clamp(12px,3.2vw,17px);color:#cfc6ff;margin-top:6px}
+.menuBtns{display:flex;flex-direction:column;gap:12px;width:min(86vw,340px);position:relative}
+.credit{font-size:11px;color:#9d92d9;position:relative}
+
+/* ---------- دکمه‌ها ---------- */
+.bigBtn{
+  font-family:inherit;font-size:clamp(15px,4vw,19px);font-weight:800;color:#fff;
+  border:none;border-radius:16px;padding:clamp(12px,2.6vh,16px) 22px;cursor:pointer;
+  box-shadow:0 5px 0 rgba(0,0,0,.35),0 8px 16px rgba(0,0,0,.25);
+  transition:transform .08s;
+  text-shadow:0 2px 0 rgba(0,0,0,.25);
+}
+.bigBtn:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
+.green{background:linear-gradient(180deg,#5df08a,#22c55e)}
+.blue{background:linear-gradient(180deg,#63c4ff,#2f8fe6)}
+.purple{background:linear-gradient(180deg,#c084fc,#8b4fd8)}
+.orange{background:linear-gradient(180deg,#ffb35c,#f07f2e)}
+.gray{background:linear-gradient(180deg,#8a8fa8,#5b6078)}
+.iconBtn{
+  font-size:20px;width:44px;height:44px;border:none;border-radius:14px;cursor:pointer;
+  background:rgba(20,16,60,.65);color:#fff;box-shadow:0 3px 0 rgba(0,0,0,.35);
+  backdrop-filter:blur(4px);
+}
+.iconBtn:active{transform:translateY(2px)}
+.rowBtns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;position:relative}
+.rowBtns.col{flex-direction:column;width:min(80vw,280px)}
+
+/* ---------- HUD ---------- */
+#hud{position:absolute;inset:0;z-index:10;pointer-events:none;
+  padding:calc(8px + env(safe-area-inset-top)) 10px 0;}
+#hudTop{display:flex;align-items:center;gap:8px;direction:rtl}
+.hudBox{
+  background:rgba(18,14,52,.72);border-radius:14px;padding:7px 12px;
+  font-size:clamp(13px,3.6vw,17px);font-weight:800;color:#ffe9a8;
+  box-shadow:0 3px 0 rgba(0,0,0,.3);display:flex;align-items:center;gap:6px;
+  backdrop-filter:blur(4px);
+}
+#hudBtns{margin-inline-start:auto;display:flex;gap:6px;pointer-events:auto}
+.cigIcon{width:22px;height:10px;border-radius:5px;background:linear-gradient(90deg,#f5f0e6 0 62%,#ff8c42 62% 78%,#8d8d8d 78%);display:inline-block;box-shadow:0 0 6px rgba(255,140,66,.7)}
+#dangerWrap{
+  position:absolute;top:calc(58px + env(safe-area-inset-top));right:50%;transform:translateX(50%);
+  display:flex;align-items:center;gap:8px;width:min(70vw,340px);
+}
+#dangerLabel{font-size:11px;font-weight:700;color:#ffd0d0;text-shadow:0 1px 2px #000}
+#dangerBar{flex:1;height:10px;border-radius:6px;background:rgba(0,0,0,.45);overflow:hidden;box-shadow:inset 0 2px 3px rgba(0,0,0,.5)}
+#dangerFill{height:100%;width:20%;border-radius:6px;background:linear-gradient(90deg,#ffd93d,#ff5e5e);transition:width .25s}
+#hudPows{position:absolute;top:calc(88px + env(safe-area-inset-top));right:10px;display:flex;flex-direction:column;gap:6px}
+.powChip{
+  display:flex;align-items:center;gap:6px;background:rgba(18,14,52,.78);
+  border-radius:12px;padding:5px 10px;font-size:13px;font-weight:800;color:#aef3ff;
+  box-shadow:0 3px 0 rgba(0,0,0,.3);animation:pop .25s;
+}
+@keyframes pop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ---------- انتخاب کاراکتر ---------- */
+#cards{
+  display:flex;gap:12px;flex-wrap:wrap;justify-content:center;
+  max-width:760px;position:relative;padding:6px;
+}
+.card{
+  width:clamp(118px,29vw,150px);background:rgba(255,255,255,.09);
+  border:3px solid transparent;border-radius:20px;padding:12px 8px 10px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;
+  transition:transform .12s,border-color .12s,background .12s;
+  backdrop-filter:blur(3px);
+}
+.card:active{transform:scale(.96)}
+.card.sel{border-color:#ffd93d;background:rgba(255,217,61,.16);box-shadow:0 0 18px rgba(255,217,61,.35)}
+.card canvas{width:86px;height:104px}
+.card .photo{
+  position:absolute;top:-14px;left:-8px;width:46px;height:46px;border-radius:50%;
+  border:3px solid #ffd93d;object-fit:cover;background:#444;
+  filter:saturate(1.55) contrast(1.12) brightness(1.05); /* فیلتر کارتونی روی عکس واقعی */
+  box-shadow:0 3px 8px rgba(0,0,0,.4);
+}
+.card .phFallback{
+  position:absolute;top:-14px;left:-8px;width:46px;height:46px;border-radius:50%;
+  border:3px solid #ffd93d;background:linear-gradient(135deg,#8b4fd8,#2f8fe6);
+  display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;
+  box-shadow:0 3px 8px rgba(0,0,0,.4);
+}
+.card .cname{font-weight:900;font-size:16px}
+.card .cbest{font-size:11px;color:#ffe9a8;font-weight:700}
+
+/* ---------- رکوردها ---------- */
+#recList{display:flex;flex-direction:column;gap:8px;width:min(92vw,420px);position:relative}
+.recRow{
+  display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.09);
+  border-radius:14px;padding:9px 14px;font-weight:700;font-size:14px;
+}
+.recRow .rk{font-size:20px}
+.recRow .rn{flex:1;text-align:right}
+.recRow .rs{color:#ffd93d;font-weight:900}
+
+/* ---------- پایان بازی ---------- */
+.overCard{
+  background:linear-gradient(180deg,rgba(43,28,94,.96),rgba(26,18,64,.96));
+  border-radius:26px;padding:22px 20px;width:min(92vw,400px);
+  box-shadow:0 10px 0 rgba(0,0,0,.35),0 20px 50px rgba(0,0,0,.5);
+  display:flex;flex-direction:column;gap:12px;align-items:center;position:relative;
+  animation:pop .3s;
+}
+.overEmoji{font-size:52px;animation:float 2s infinite}
+#overTitle{font-size:clamp(24px,7vw,34px);font-weight:900;color:#ff8080;text-shadow:0 3px 0 rgba(0,0,0,.4)}
+.badge{background:linear-gradient(90deg,#ffd93d,#ffb35c);color:#5b3b00;border-radius:999px;padding:5px 16px;font-weight:900;font-size:14px;animation:pop .4s}
+.overStats{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.stat{background:rgba(255,255,255,.08);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:2px}
+.stat span{font-size:11px;color:#cfc6ff}
+.stat b{font-size:clamp(17px,5vw,22px);font-weight:900;color:#fff}
+.stat.best b{color:#ffd93d}
+
+/* ---------- اورلی‌ها ---------- */
+.overlay{
+  position:absolute;inset:0;z-index:40;background:rgba(10,8,34,.78);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;padding:16px;
+}
+.ovCard{
+  background:linear-gradient(180deg,#332478,#221856);border-radius:24px;padding:20px;
+  width:min(94vw,470px);display:flex;flex-direction:column;gap:14px;align-items:center;
+  box-shadow:0 10px 0 rgba(0,0,0,.35);text-align:center;animation:pop .25s;
+}
+.ovCard h2{font-size:clamp(18px,5vw,24px);font-weight:900}
+.pauseHint{color:#cfc6ff;font-size:13px}
+.tutGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.tut{background:rgba(255,255,255,.08);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:6px;align-items:center}
+.tutIc{font-size:28px}
+.tut p{font-size:11.5px;line-height:1.7;color:#e6e0ff;font-weight:700}
+@media (max-width:420px){.tutGrid{grid-template-columns:1fr 1fr}.tut p{font-size:10.5px}}
+
+/* ---------- توست ---------- */
+#toast{
+  position:absolute;bottom:calc(24px + env(safe-area-inset-bottom));right:50%;transform:translateX(50%);
+  z-index:60;background:rgba(20,16,60,.92);color:#ffe9a8;font-weight:800;font-size:14px;
+  border-radius:999px;padding:10px 22px;box-shadow:0 4px 0 rgba(0,0,0,.35);
+  animation:pop .25s;pointer-events:none;white-space:nowrap;
+}
