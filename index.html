@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a1440">
-<title>فرار از خوابگاه 🚬 — بازی دونده بی‌پایان دانشجویی</title>
+<title>فرار از خوابگاه 🚬 — لیگ خوابگاه</title>
+<meta name="description" content="فرار از خوابگاه — بازی آرکید رقابتی دانشجویی. رکورد بزن، با دوستات رقابت کن، لیگ رو فتح کن!">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚬</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,6 +22,13 @@
       <div class="hudBox" id="hudCigsBox"><span class="cigIcon"></span><b id="hudCigs">0</b></div>
       <div class="hudBox" id="hudScoreBox">⭐ <b id="hudScore">0</b></div>
       <div class="hudBox" id="hudDistBox">🏃 <b id="hudDist">0</b> م</div>
+      <div class="hudBox comboBox hidden" id="hudComboBox">🔥 <b id="hudCombo">x0</b></div>
+      <div class="hudBox hidden" id="hudLevelBox">⭐ Lv<b id="hudLevel">1</b></div>
+      <button id="abilityBtn" class="hidden" aria-label="Ability">
+        <span class="abIcon" id="abIcon">⚡</span>
+        <span id="abLabel">READY</span>
+        <div class="abProg hidden" id="abProg"><div class="abFill" id="abFill"></div></div>
+      </button>
       <div id="hudBtns">
         <button id="btnMute" class="iconBtn" aria-label="صدا">🔊</button>
         <button id="btnPause" class="iconBtn" aria-label="توقف">⏸</button>
@@ -31,57 +39,202 @@
       <div id="dangerBar"><div id="dangerFill"></div></div>
     </div>
     <div id="hudPows"></div>
+    <div id="comboHud" class="hidden"><div class="comboBig" id="comboBigText">COMBO x12!</div></div>
+    <div id="eventBanner" class="hidden"></div>
+    <div id="rumorBanner" class="hidden"></div>
   </div>
+
+  <!-- ======= Username Gate ======= -->
+  <section id="screen-username" class="screen hidden">
+    <div class="logoWrap"><div class="logoEmoji">😎</div><h1 class="logo">خوش اومدی!</h1><p class="tagline">اسمت چیه قهرمان خوابگاه؟</p></div>
+    <div class="glass" style="padding:18px;width:min(92vw,380px);display:flex;flex-direction:column;gap:14px;position:relative;z-index:1">
+      <input id="usernameInput" class="userInput" maxlength="14" placeholder="مثلاً پارسا" autocomplete="off">
+      <p style="font-size:12px;color:#cfc6ff">نام تا ۱۴ حرف، بعداً می‌تونی عوضش کنی. <br>با Guest هم می‌تونی بازی کنی.</p>
+      <div class="rowBtns">
+        <button id="btnSaveUser" class="bigBtn green" style="flex:1">بریم! 🚀</button>
+        <button id="btnGuest" class="bigBtn dark" style="flex:1">مهمان 👤</button>
+      </div>
+    </div>
+  </section>
 
   <!-- ======= منوی اصلی ======= -->
   <section id="menu" class="screen">
+    <div class="topBar" id="menuTopBar">
+      <div class="tbItem"><span id="menuAvatar" style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#8b4fd8,#ff7eb3);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px">پ</span> <span id="menuUsername">مهمان</span></div>
+      <div class="tbSep"></div>
+      <div class="tbItem">⭐ Lv<span id="menuLevel">1</span></div>
+      <div class="tbSep"></div>
+      <div class="tbItem">🏆 <span id="menuBest">0</span></div>
+      <div class="tbSep"></div>
+      <div class="tbItem" id="menuLeagueBadge">🥉 Bronze</div>
+    </div>
     <div class="logoWrap">
-      <div class="logoEmoji">🏃♂️💨</div>
+      <div class="logoEmoji">🏃‍♂️💨🚬</div>
       <h1 class="logo">فرار از خوابگاه</h1>
-      <p class="tagline">یه دورِ دیگه، یه نخِ دیگه… نذار انتظامات بگیرتت! 🚬</p>
+      <p class="tagline">لیگ خوابگاه — فصل ۳ • هر روز یه چالش، هر هفته یه لیگ! 🔥</p>
     </div>
-    <div class="menuBtns">
-      <button id="btnStart" class="bigBtn green">▶ شروع بازی</button>
-      <button id="btnSelect" class="bigBtn blue">😎 انتخاب کاراکتر</button>
-      <button id="btnRecords" class="bigBtn purple">🏆 رکوردها</button>
-      <button id="btnHelp" class="bigBtn orange">❓ راهنما</button>
+    <div id="tonightCard" class="glass" style="padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:#ffe9a8;position:relative;z-index:1;max-width:min(92vw,420px)">
+      <span>🌙</span><span id="tonightText">امشب: انتظامات خوابش میاد — سرعت پلیس -15%!</span>
     </div>
-    <p class="credit">نسخهٔ دانشجویی • دانشگاه شهید بهشتی • شبِ خوابگاه 🌙</p>
+    <div class="menuGrid">
+      <button id="btnStart" class="bigBtn green wide">▶ شروع فرار</button>
+      <button id="btnDaily" class="bigBtn orange">🌙 چالش امروز</button>
+      <button id="btnLeague" class="bigBtn purple">🏆 لیگ خوابگاه</button>
+      <button id="btnSelect" class="bigBtn blue">😎 کاراکترها</button>
+      <button id="btnMissions" class="bigBtn teal">🎯 مأموریت‌ها</button>
+      <button id="btnProfile" class="bigBtn pink">👤 پروفایل</button>
+      <button id="btnAchievements" class="bigBtn dark">🏅 افتخارات</button>
+      <button id="btnSettings" class="bigBtn gray">⚙️ تنظیمات</button>
+    </div>
+    <div style="display:flex;gap:8px;position:relative;z-index:1">
+      <button id="btnHelp" class="ghostBtn" style="padding:8px 14px;border-radius:12px;color:#fff;font-weight:700;cursor:pointer">❓ راهنما</button>
+      <button id="btnRecordsOld" class="ghostBtn" style="padding:8px 14px;border-radius:12px;color:#fff;font-weight:700;cursor:pointer">📋 رکوردهای قدیمی</button>
+    </div>
+    <p class="credit">نسخه ۳.۰ • دانشگاه شهید بهشتی • ساخته شده با ❤️ برای بچه‌های خوابگاه</p>
   </section>
 
   <!-- ======= انتخاب کاراکتر ======= -->
   <section id="select" class="screen hidden">
     <h2 class="screenTitle">کاراکترت رو انتخاب کن 😎</h2>
+    <p class="screenSub">هرکس یه سبک فرار داره — بهترینِ خودت رو پیدا کن!</p>
     <div id="cards"></div>
+    <div id="charDetail" class="glass hidden" style="padding:14px;width:min(96vw,540px);position:relative;z-index:1;text-align:right">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div id="charDetailIcon" style="font-size:36px">⚡</div>
+        <div>
+          <div id="charDetailName" style="font-weight:900;font-size:18px">پارسا — فرارچی</div>
+          <div id="charDetailDesc" style="font-size:12px;color:#cfc6ff">Passive + Active</div>
+        </div>
+        <button id="btnUseAbilityPreview" class="bigBtn blue" style="margin-inline-start:auto;padding:8px 12px;font-size:12px">پیش‌نمایش</button>
+      </div>
+    </div>
     <div class="rowBtns">
       <button id="btnPlaySel" class="bigBtn green">بزن بریم! 🏃</button>
       <button id="btnBackSel" class="bigBtn gray">برگشت</button>
     </div>
   </section>
 
-  <!-- ======= رکوردها ======= -->
+  <!-- ======= لیگ خوابگاه ======= -->
+  <section id="league" class="screen hidden">
+    <h2 class="screenTitle">🏆 لیگ خوابگاه</h2>
+    <p class="screenSub" id="leagueSub">جهانی • دوستان • این هفته • امروز • کاراکتر</p>
+    <div class="tabs" id="leagueTabs">
+      <button class="tab active" data-tab="global">🌎 جهانی</button>
+      <button class="tab" data-tab="friends">👥 دوستان</button>
+      <button class="tab" data-tab="weekly">👑 این هفته</button>
+      <button class="tab" data-tab="daily">📅 امروز</button>
+      <button class="tab" data-tab="character">🎭 کاراکتری</button>
+    </div>
+    <div id="leagueCharFilter" class="hidden" style="position:relative;z-index:1;display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
+      <button class="bigBtn ghostBtn" data-char="parsa" style="padding:6px 10px;font-size:12px">پارسا</button>
+      <button class="bigBtn ghostBtn" data-char="mahyar" style="padding:6px 10px;font-size:12px">مهیار</button>
+      <button class="bigBtn ghostBtn" data-char="arsham" style="padding:6px 10px;font-size:12px">آرشام</button>
+      <button class="bigBtn ghostBtn" data-char="mohsen" style="padding:6px 10px;font-size:12px">محسن</button>
+      <button class="bigBtn ghostBtn" data-char="farham" style="padding:6px 10px;font-size:12px">فرهام</button>
+    </div>
+    <div class="leagueWrap">
+      <div class="leagueHeader"><span>رتبه • بازیکن</span><span>امتیاز</span></div>
+      <div id="leagueList"></div>
+      <div id="leagueStatus" class="emptyState hidden"></div>
+      <div id="myRankCard" class="myRankCard hidden"></div>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button id="btnChallengeFriend" class="bigBtn blue" style="padding:10px 14px;font-size:13px">⚔️ چالش دوست</button>
+        <button id="btnGhostToggle" class="bigBtn teal" style="padding:10px 14px;font-size:13px">👻 Ghost</button>
+      </div>
+    </div>
+    <div class="rowBtns"><button id="btnBackLeague" class="bigBtn gray">برگشت</button></div>
+  </section>
+
+  <!-- ======= مأموریت‌ها ======= -->
+  <section id="missions" class="screen hidden">
+    <h2 class="screenTitle">🎯 مأموریت‌ها</h2>
+    <div class="tabs" id="missionTabs">
+      <button class="tab active" data-mtab="daily">📅 روزانه</button>
+      <button class="tab" data-mtab="weekly">📆 هفتگی</button>
+      <button class="tab" data-mtab="progress">📊 پیشرفت</button>
+    </div>
+    <div id="missionList" class="missionGrid"></div>
+    <div class="rowBtns"><button id="btnBackMissions" class="bigBtn gray">برگشت</button></div>
+  </section>
+
+  <!-- ======= افتخارات ======= -->
+  <section id="achievements" class="screen hidden">
+    <h2 class="screenTitle">🏅 افتخارات خوابگاه</h2>
+    <p class="screenSub" id="achProgress">۷ / ۲۴ باز شده</p>
+    <div id="achGrid" class="achGrid"></div>
+    <div class="rowBtns"><button id="btnBackAch" class="bigBtn gray">برگشت</button></div>
+  </section>
+
+  <!-- ======= پروفایل ======= -->
+  <section id="profile" class="screen hidden">
+    <h2 class="screenTitle">👤 پروفایل</h2>
+    <div id="profileBox" class="profileGrid"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;position:relative;z-index:1">
+      <button id="btnEditName" class="bigBtn blue" style="padding:10px 14px;font-size:13px">✏️ تغییر نام</button>
+      <button id="btnAddFriend" class="bigBtn teal" style="padding:10px 14px;font-size:13px">👥 افزودن دوست</button>
+      <button id="btnShareProfile" class="bigBtn purple" style="padding:10px 14px;font-size:13px">📤 اشتراک</button>
+    </div>
+    <div class="tabs" style="margin-top:8px">
+      <button class="tab active" id="btnStatsTab">📊 آمار کامل</button>
+      <button class="tab" id="btnReputationTab">🏠 اعتبار</button>
+    </div>
+    <div id="statsBox" class="profileGrid" style="margin-top:8px"></div>
+    <div class="rowBtns"><button id="btnBackProfile" class="bigBtn gray">برگشت</button></div>
+  </section>
+
+  <!-- ======= تنظیمات ======= -->
+  <section id="settings" class="screen hidden">
+    <h2 class="screenTitle">⚙️ تنظیمات</h2>
+    <div class="settingsWrap">
+      <div class="settingRow"><div class="sLabel">🔊 موسیقی</div><div class="sControl"><input type="range" id="musicVol" class="range" min="0" max="100" value="70"><span id="musicVolVal">70%</span></div></div>
+      <div class="settingRow"><div class="sLabel">🎵 افکت‌ها</div><div class="sControl"><input type="range" id="sfxVol" class="range" min="0" max="100" value="85"><span id="sfxVolVal">85%</span></div></div>
+      <div class="settingRow"><div class="sLabel">📳 لرزش</div><div class="sControl"><div id="toggleVibrate" class="toggle on"></div></div></div>
+      <div class="settingRow"><div class="sLabel">✨ ذرات</div><div class="sControl"><div id="toggleParticles" class="toggle on"></div></div></div>
+      <div class="settingRow"><div class="sLabel">🎥 لرزش صفحه</div><div class="sControl"><div id="toggleShake" class="toggle on"></div></div></div>
+      <div class="settingRow"><div class="sLabel">♿ کاهش حرکت</div><div class="sControl"><div id="toggleReduced" class="toggle"></div></div></div>
+      <div class="settingRow"><div class="sLabel">🌗 کنتراست بالا</div><div class="sControl"><div id="toggleContrast" class="toggle"></div></div></div>
+      <div class="settingRow"><div class="sLabel">🌐 زبان</div><div class="sControl"><span style="background:rgba(255,255,255,.08);padding:6px 12px;border-radius:8px;font-weight:800">🇮🇷 فارسی</span></div></div>
+      <div class="settingRow"><div class="sLabel">☁️ همگام‌سازی</div><div class="sControl"><span id="syncStatus" style="font-size:12px;color:#a7f3d0">✓ همگام</span><button id="btnSync" class="bigBtn blue" style="padding:6px 10px;font-size:12px">همگام‌سازی</button></div></div>
+      <div class="settingRow"><div class="sLabel">🗑️ بازنشانی</div><div class="sControl"><button id="btnResetData" class="bigBtn pink" style="padding:6px 12px;font-size:12px">پاک کردن داده</button></div></div>
+    </div>
+    <div class="rowBtns"><button id="btnBackSettings" class="bigBtn gray">برگشت</button></div>
+  </section>
+
+  <!-- ======= رکوردهای قدیمی ======= -->
   <section id="records" class="screen hidden">
-    <h2 class="screenTitle">🏆 تابلوی افتخارات خوابگاه</h2>
-    <div id="recList"></div>
+    <h2 class="screenTitle">🏆 تابلوی افتخارات قدیمی</h2>
+    <div id="recList" style="display:flex;flex-direction:column;gap:8px;width:min(96vw,420px);position:relative;z-index:1"></div>
     <div class="rowBtns"><button id="btnBackRec" class="bigBtn gray">برگشت</button></div>
   </section>
 
   <!-- ======= پایان بازی ======= -->
   <section id="over" class="screen hidden">
     <div class="overCard">
-      <div class="overEmoji">🚔</div>
+      <div class="overEmoji" id="overEmoji">🚔</div>
       <h2 id="overTitle">گیر افتادی!</h2>
+      <div id="overRumor" class="hidden" style="background:rgba(255,255,255,.08);padding:8px 12px;border-radius:12px;font-size:12px;color:#ffe9a8">💬 شایعه: ...</div>
       <div id="newRec" class="badge hidden">🎉 رکورد جدید!</div>
+      <div id="levelUpBadge" class="badge hidden" style="background:linear-gradient(90deg,#8b4fd8,#5df08a)">⭐ LEVEL UP!</div>
       <div class="overStats">
-        <div class="stat"><span>امتیاز</span><b id="ovScore">0</b></div>
+        <div class="stat"><span>امتیاز کل</span><b id="ovScore">0</b></div>
         <div class="stat"><span>نخ سیگار 🚬</span><b id="ovCigs">0</b></div>
         <div class="stat"><span>مسافت</span><b id="ovDist">0 م</b></div>
         <div class="stat best"><span>بهترینِ تو</span><b id="ovBest">0</b></div>
       </div>
-      <div class="rowBtns">
-        <button id="btnRetry" class="bigBtn green">🔁 دوباره تلاش کن</button>
-        <button id="btnShare" class="bigBtn blue">📤 اشتراک امتیاز</button>
-        <button id="btnMenuOver" class="bigBtn gray">منو</button>
+      <div id="scoreBreak" class="scoreBreak"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%">
+        <div class="stat"><span>بهترین Combo</span><b id="ovCombo">x0</b></div>
+        <div class="stat"><span>Near Miss ⚡</span><b id="ovNearMiss">0</b></div>
+      </div>
+      <div id="overRank" class="myRankCard" style="width:100%"></div>
+      <div class="rowBtns" style="width:100%">
+        <button id="btnRetry" class="bigBtn green" style="flex:1">🔁 دوباره</button>
+        <button id="btnShare" class="bigBtn blue" style="flex:1">📤 اشتراک</button>
+      </div>
+      <div class="rowBtns" style="width:100%">
+        <button id="btnOverLeague" class="bigBtn purple" style="flex:1">🏆 لیگ</button>
+        <button id="btnOverChallenge" class="bigBtn orange" style="flex:1">⚔️ چالش دوست</button>
+        <button id="btnMenuOver" class="bigBtn gray" style="flex:1">منو</button>
       </div>
     </div>
   </section>
@@ -89,14 +242,20 @@
   <!-- ======= آموزش ======= -->
   <div id="tutorial" class="overlay hidden">
     <div class="ovCard">
-      <h2>چطوری بازی کنم؟ 🤔</h2>
+      <h2>چطوری فرار کنم؟ 🤔</h2>
       <div class="tutGrid">
-        <div class="tut"><span class="tutIc">⬅️➡️</span><p>کشیدن به چپ/راست<br>یا کلیدهای جهت / A D<br>= عوض کردن لاین</p></div>
-        <div class="tut"><span class="tutIc">⬆️</span><p>کشیدن به بالا / W<br>= پرش از روی مانع</p></div>
-        <div class="tut"><span class="tutIc">⬇️</span><p>کشیدن به پایین / S<br>= سرخوردن زیر مانع</p></div>
-        <div class="tut"><span class="tutIc">🚬</span><p>نخ‌سیگار جمع کن،<br>پاورآپ بردار، و از دست<br>انتظامات فرار کن! 👮</p></div>
+        <div class="tut"><span class="tutIc">⬅️➡️</span><p>کشیدن چپ/راست<br>یا ← → / A D<br>= لاین</p></div>
+        <div class="tut"><span class="tutIc">⬆️</span><p>کشیدن بالا / W / Space<br>= پرش</p></div>
+        <div class="tut"><span class="tutIc">⬇️</span><p>کشیدن پایین / S<br>= سرخوردن</p></div>
+        <div class="tut"><span class="tutIc">⚡</span><p>دکمه Ability یا<br>دابل‌تپ / Q<br>= قدرت ویژه</p></div>
       </div>
-      <button id="btnTutOk" class="bigBtn green">باشه، بزن بریم! 😎</button>
+      <div class="tutGrid" style="margin-top:4px">
+        <div class="tut"><span class="tutIc">🚬</span><p>سیگار جمع کن<br>Combo بساز 🔥</p></div>
+        <div class="tut"><span class="tutIc">⚡</span><p>نزدیک مانع رد شو<br>Near Miss بگیر!</p></div>
+        <div class="tut"><span class="tutIc">🧲</span><p>Power-ups:<br>مگنت، شیلد، بوست...</p></div>
+        <div class="tut"><span class="tutIc">👮</span><p>از انتظامات<br>فرار کن!</p></div>
+      </div>
+      <button id="btnTutOk" class="bigBtn green">باشه، فرار می‌کنم! 😎</button>
     </div>
   </div>
 
@@ -104,11 +263,49 @@
   <div id="pauseOv" class="overlay hidden">
     <div class="ovCard">
       <h2>⏸ استراحت بین فرار</h2>
-      <p class="pauseHint">انتظامات هم ایستاده، نفس بگیر! 😮‍💨</p>
-      <div class="rowBtns col">
+      <p class="pauseHint">انتظامات هم ایستاده — نفس بگیر! 😮‍💨</p>
+      <div id="pauseStats" style="background:rgba(255,255,255,.06);border-radius:12px;padding:10px;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;color:#cfc6ff"></div>
+      <div class="rowBtns col" style="width:100%">
         <button id="btnResume" class="bigBtn green">ادامه ▶</button>
         <button id="btnRestartP" class="bigBtn blue">شروع دوباره 🔁</button>
         <button id="btnMenuP" class="bigBtn gray">منوی اصلی</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= Friend Modal ======= -->
+  <div id="friendModal" class="overlay hidden">
+    <div class="ovCard">
+      <h2>👥 دوستان خوابگاه</h2>
+      <p class="pauseHint">کد دوستت رو وارد کن یا کد خودت رو بفرست</p>
+      <div style="background:rgba(0,0,0,.2);border-radius:12px;padding:10px;width:100%">
+        <div style="font-size:12px;color:#cfc6ff">کد تو:</div>
+        <div id="myFriendCode" style="font-size:18px;font-weight:900;color:#ffd93d;letter-spacing:2px">DORM-XXXX</div>
+        <button id="btnCopyCode" class="bigBtn blue" style="padding:6px 12px;font-size:12px;margin-top:6px">کپی کد 📋</button>
+      </div>
+      <input id="friendCodeInput" class="userInput" placeholder="DORM-XXXX" maxlength="9" style="text-transform:uppercase">
+      <div class="rowBtns" style="width:100%">
+        <button id="btnAddFriendConfirm" class="bigBtn green" style="flex:1">افزودن ✅</button>
+        <button id="btnCloseFriend" class="bigBtn gray" style="flex:1">بستن</button>
+      </div>
+      <div id="friendList" style="width:100%;display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <!-- ======= Challenge Modal ======= -->
+  <div id="challengeModal" class="overlay hidden">
+    <div class="ovCard">
+      <h2>⚔️ چالش دوست</h2>
+      <p class="pauseHint">همین Run رو با Seed یکسان برای دوستت بفرست — ببین کی بهتره!</p>
+      <div style="background:rgba(0,0,0,.22);border-radius:12px;padding:12px;width:100%;font-family:monospace">
+        <div style="font-size:11px;color:#cfc6ff">Challenge Seed</div>
+        <div id="challengeSeed" style="font-size:20px;font-weight:900;color:#ffd93d;letter-spacing:2px">#00000</div>
+        <div id="challengeUrl" style="font-size:11px;color:#a7f3d0;word-break:break-all;margin-top:6px"></div>
+      </div>
+      <div class="rowBtns" style="width:100%">
+        <button id="btnCopyChallenge" class="bigBtn green" style="flex:1">کپی لینک 🔗</button>
+        <button id="btnPlayChallenge" class="bigBtn blue" style="flex:1">بازی کن ▶</button>
+        <button id="btnCloseChallenge" class="bigBtn gray">بستن</button>
       </div>
     </div>
   </div>
