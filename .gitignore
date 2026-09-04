@@ -1,0 +1,13 @@
+# Dorm Escape — gitignore
+config/config.php
+.env
+install.lock
+*.lock
+/vendor/
+/node_modules/
+/.cache/
+.DS_Store
+Thumbs.db
+*.log
+coverage/
+dist/

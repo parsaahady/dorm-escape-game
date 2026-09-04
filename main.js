@@ -98,7 +98,51 @@ function migrateOld(){
   return base;
 }
 let DB = migrateOld();
-function saveDB(){ store.set(STORAGE_KEY, DB); }
+// FIX: zonesSeen was stored as Set {} -> JSON becomes {} / [] -> .add throws and freezes game over
+(function normalizeDB(){
+  try{
+    if (DB.stats && DB.stats.zonesSeen) {
+      if (DB.stats.zonesSeen instanceof Set) DB.stats.zonesSeen = Array.from(DB.stats.zonesSeen);
+      else if (Array.isArray(DB.stats.zonesSeen)) {} // ok
+      else if (typeof DB.stats.zonesSeen === 'object') {
+        try { DB.stats.zonesSeen = Object.values(DB.stats.zonesSeen); if(!Array.isArray(DB.stats.zonesSeen)) DB.stats.zonesSeen=[]; } catch(e){ DB.stats.zonesSeen=[]; }
+      } else DB.stats.zonesSeen = [];
+    } else if (DB.stats) DB.stats.zonesSeen = [];
+    // save normalized immediately if it was object
+    if (DB.stats && !Array.isArray(DB.stats.zonesSeen)) DB.stats.zonesSeen = [];
+  } catch(e){ try{ DB.stats.zonesSeen=[]; }catch(_){} }
+})();
+function saveDB(){
+  try{
+    // ensure zonesSeen stored as array (Set would become {} )
+    if (DB.stats && DB.stats.zonesSeen instanceof Set) DB.stats.zonesSeen = Array.from(DB.stats.zonesSeen);
+  } catch(e){}
+  store.set(STORAGE_KEY, DB);
+}
+// پاکسازی خودکار لیگ فیک (cachedBoard قدیمی که پر از بات بود)
+(function cleanFakeCached(){
+  try{
+    if (Array.isArray(DB.cachedBoard) && DB.cachedBoard.length>0) {
+      const fakeNames = new Set(['پارسا','مهیار','آرشام','محسن','فرهام','سارا','علی','نگار','کیان','تارا']);
+      const before = DB.cachedBoard.length;
+      DB.cachedBoard = DB.cachedBoard.filter(r=> !fakeNames.has(r.username));
+      if (DB.cachedBoard.length !== before) { try{ saveDB(); }catch(e){} }
+    }
+    // پاکسازی قدیمی fed_records_v1 که باعث پر شدن cachedBoard می‌شد
+    try{ localStorage.removeItem('fed_records_v1'); }catch(e){}
+  } catch(e){}
+})();
+// تابع دستی برای پاک کردن لیگ فیک از کنسول یا دکمه تنظیمات
+function clearFakeLeagueData(){
+  DB.cachedBoard = [];
+  // pendingRuns واقعی را نگه می‌داریم (دارای run_id)، فقط آرایه خالی نمی‌کنیم مگر کاربر بخواهد
+  // DB.pendingRuns = [];
+  try{ localStorage.removeItem('fed_records_v1'); }catch(e){}
+  saveDB();
+  toast('✅ لیگ فیک (محلی) پاک شد — حالا فقط امتیازهای واقعی MySQL نمایش داده می‌شود');
+  try{ showLeague(activeLeagueTab||'global'); }catch(e){}
+}
+window.clearFakeLeagueData = clearFakeLeagueData;
 function ensureMissions(){
   const today = dailySeedStr();
   if (DB.missions.lastDaily !== today){
@@ -184,7 +228,7 @@ const ACH_DEFS=[
   {id:'record', title:'رکورددار 🏆', desc:'امتیاز ۲۰,۰۰۰', icon:'🏆', target:20000, check:(st)=>st.bestScore>=20000},
   {id:'nightowl', title:'شب‌زنده‌دار 🌙', desc:'۵ Run شبانه (بعد ۲۲:۰۰)', icon:'🌙', target:5, check:(st)=>(st.nightRuns||0)>=5},
   {id:'collector', title:'جمع‌کن 🎒', desc:'۱۰ Power-up بگیر', icon:'🧲', target:10, check:(st)=>(st.pows||0)>=10},
-  {id:'explorer', title:'گردشگر خوابگاه 🗺️', desc:'۳ محیط مختلف ببین', icon:'🗺️', target:3, check:(st)=>(st.zonesSeen?.size||0)>=3},
+  {id:'explorer', title:'گردشگر خوابگاه 🗺️', desc:'۳ محیط مختلف ببین', icon:'🗺️', target:3, check:(st)=>{ const z=st.zonesSeen; const n = Array.isArray(z)? z.length : (z?.size||0); return n>=3; }},
   {id:'friend', title:'رفیق خوابگاهی 👥', desc:'۱ دوست اضافه کن', icon:'👥', target:1, check:(st)=>st.friendsAdded>=1},
 ];
 
@@ -218,7 +262,7 @@ function updateAchievements(){
     else if(a.id==='record') prog=DB.stats.bestScore;
     else if(a.id==='nightowl') prog=DB.stats.nightRuns||0;
     else if(a.id==='collector') prog=DB.stats.pows||0;
-    else if(a.id==='explorer') prog=DB.stats.zonesSeen? DB.stats.zonesSeen.size:0;
+    else if(a.id==='explorer'){ const z=DB.stats.zonesSeen; prog= Array.isArray(z)? z.length : (z?.size||0); }
     else if(a.id==='friend') prog=DB.stats.friendsAdded||0;
     a.progress=Math.min(prog, def.target);
     if(def.check(DB.stats)){ a.unlocked=true; addXP(200); any=true; }
@@ -298,20 +342,11 @@ function getChallengeFromUrl(){
   return null;
 }
 
-/* ---------------- Fake Backend (Offline-First) ---------------- */
+/* ---------------- Fake Backend (Offline-First) — REAL MODE: bots disabled ---------------- */
+// برای حذف لیگ فیک: bots خالی شد — لیگ فقط امتیازهای واقعی MySQL را نشان می‌دهد
+const USE_FAKE_BOTS = false; // true = نمایش بات‌های نمایشی (demo)، false = فقط امتیاز واقعی
 const FakeBackend = {
-  bots: [
-    {username:'پارسا', character:'parsa', score:48920, distance:2847, cigs:142, combo:23, avatar:'😎'},
-    {username:'مهیار', character:'mahyar', score:45120, distance:2600, cigs:128, combo:19, avatar:'🧲'},
-    {username:'آرشام', character:'arsham', score:41780, distance:2450, cigs:110, combo:21, avatar:'🎲'},
-    {username:'محسن', character:'mohsen', score:38900, distance:2300, cigs:98, combo:14, avatar:'🛡️'},
-    {username:'فرهام', character:'farham', score:36500, distance:2210, cigs:105, combo:18, avatar:'👻'},
-    {username:'سارا', character:'parsa', score:31200, distance:1980, cigs:88, combo:12, avatar:'✨'},
-    {username:'علی', character:'mohsen', score:29800, distance:1850, cigs:82, combo:11, avatar:'🔥'},
-    {username:'نگار', character:'mahyar', score:27400, distance:1720, cigs:76, combo:10, avatar:'🌙'},
-    {username:'کیان', character:'arsham', score:25100, distance:1600, cigs:70, combo:9, avatar:'⚡'},
-    {username:'تارا', character:'farham', score:22800, distance:1480, cigs:64, combo:8, avatar:'💎'},
-  ],
+  bots: [],
   getLeaderboard(tab, filterChar){
     let list = [];
     // from DB cached + bots + pending
@@ -321,13 +356,15 @@ const FakeBackend = {
     if(playerScore>0){
       list.push({username: DB.player.username||'تو', character: DB.characters.selected, score:playerScore, distance:DB.stats.bestDistance, cigs:DB.stats.bestCigs||DB.stats.totalCigs, combo:DB.stats.bestCombo, avatar:'⭐', isMe:true, date:now});
     }
-    // add fake bots with slight jitter per day
-    const seed=getDailySeed();
-    const rng=mulberry32(seed);
-    this.bots.forEach(b=> {
-      const jitter = Math.floor((rng()-0.5)*800);
-      list.push({...b, score: Math.max(0,b.score+jitter), isMe:false, date: now - randi(0,86400000*3)});
-    });
+    // add fake bots with slight jitter per day (disabled when USE_FAKE_BOTS=false)
+    if (USE_FAKE_BOTS && this.bots.length>0) {
+      const seed=getDailySeed();
+      const rng=mulberry32(seed);
+      this.bots.forEach(b=> {
+        const jitter = Math.floor((rng()-0.5)*800);
+        list.push({...b, score: Math.max(0,b.score+jitter), isMe:false, date: now - randi(0,86400000*3)});
+      });
+    }
     // add pending runs
     DB.pendingRuns.forEach(r=> list.push({...r, isMe: r.username===(DB.player.username||'تو'), date:r.date}));
     // add cached board
@@ -385,23 +422,155 @@ function validateRun(p){
 }
 const Network = {
   supabase: null,
+  php: false,
   init(){
     const url = store.get('supabase_url', null);
     const key = store.get('supabase_key', null);
     if(url && key) this.supabase={url,key};
     else this.supabase=null;
+    if(window.Api && window.isSupabaseConfigured) this.supabase = {real:true};
+    if(window.PhpApi && window.phpBackendAvailable) this.php = true;
+    // also check if fetch to PHP works (will be set via php_api.js)
+    if(window.phpBackendAvailable) this.php = true;
   },
   async submit(payload){
-    if(this.supabase){
+    // 1) Try PHP backend first (shared hosting target)
+    if((window.PhpApi && window.phpBackendAvailable) || this.php){
       try{
-        // real supabase would be here; fallback to fake
-        return await FakeBackend.submitScore(payload);
-      }catch(e){ throw e; }
+        const api = window.PhpApi;
+        if(api){
+          const run_id = payload.run_id || (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : 'run-'+Date.now()+'-'+Math.random().toString(36).slice(2,8));
+          const started = payload.started_at || new Date().toISOString().slice(0,19).replace('T',' ');
+          const finished = payload.finished_at || new Date().toISOString().slice(0,19).replace('T',' ');
+          const res = await api.submitRun({
+            run_id: run_id,
+            character_id: payload.character || payload.character_id,
+            seed: payload.seed || 0,
+            score: payload.score,
+            distance: payload.distance,
+            best_combo: payload.combo || payload.best_combo || 0,
+            duration: payload.duration || 60,
+            items: payload.cigs || payload.items_collected || 0,
+            near_misses: payload.nearMiss || payload.near_misses || 0,
+            powerups: payload.powerups_used || payload.powsCollected || 0,
+            ability_uses: payload.abilityUses || payload.ability_uses || 0,
+            environment: payload.environment || 'dorm',
+            started_at: started,
+            finished_at: finished
+          });
+          return {ok:true, rank: res.rank || 1, real:true, php:true, data:res};
+        }
+      }catch(e){
+        console.warn('[Network] PHP submit failed, fallback', e.message);
+        // if auth error, keep offline queue
+        if(e.message && e.message.includes('Login required')) throw e;
+      }
+    }
+    // 2) Try Supabase
+    if(window.Api && window.isSupabaseConfigured){
+      try{
+        const run_id = payload.run_id || (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : 'run-'+Date.now()+'-'+Math.random().toString(36).slice(2,8));
+        const started = payload.started_at || new Date().toISOString();
+        const finished = payload.finished_at || new Date().toISOString();
+        const res = await window.Api.submitRun({
+          run_id: run_id,
+          character_id: payload.character || payload.character_id,
+          seed: payload.seed || 0,
+          score: payload.score,
+          distance: payload.distance,
+          best_combo: payload.combo || 0,
+          duration: payload.duration || 60,
+          items: payload.cigs || 0,
+          near_misses: payload.nearMiss || 0,
+          powerups: payload.powerups_used || 0,
+          ability_uses: payload.abilityUses || 0,
+          environment: payload.environment || 'dorm',
+          started_at: started,
+          finished_at: finished
+        });
+        return {ok:true, rank: 1, real:true, data:res};
+      }catch(e){
+        console.warn('[Network] real submit failed, fallback to fake', e.message);
+      }
+    }
+    if(this.supabase){
+      try{ return await FakeBackend.submitScore(payload); }catch(e){ throw e; }
     } else {
       return await FakeBackend.submitScore(payload);
     }
   },
   async leaderboard(tab, char){
+    // 1) PHP — merge pendingRuns so guest sees own score even before verified
+    if((window.PhpApi && window.phpBackendAvailable) || this.php){
+      try{
+        const api = window.PhpApi;
+        if(api){
+          const data = await api.getLeaderboard(tab, {character: char, limit:20, offset:0});
+          let mapped = data.map((r, idx)=> ({
+            username: r.username,
+            character: r.character || r.character_id,
+            score: r.score,
+            distance: r.distance || 0,
+            cigs: r.cigs || r.items_collected || 0,
+            combo: r.combo || r.best_combo || 0,
+            avatar: r.avatar || '😎',
+            rank: Number(r.rank) || idx+1,
+            isMe: false,
+            date: r.date ? r.date : (r.created_at ? new Date(r.created_at).getTime() : Date.now())
+          }));
+          // merge local pendingRuns (so امتیاز همین الان دیده شود حتی قبل از verified)
+          try{
+            if (typeof DB !== 'undefined' && Array.isArray(DB.pendingRuns) && DB.pendingRuns.length>0) {
+              const myName = DB.player && DB.player.username ? DB.player.username : null;
+              DB.pendingRuns.forEach(r=>{
+                // filter by character tab if needed
+                if (tab==='character' && char && r.character!==char && r.character_id!==char) return;
+                if (mapped.some(m=> m.username===r.username && m.score===r.score && Math.abs((m.date||0)-(r.date||0))<1000)) return;
+                mapped.push({
+                  username: r.username,
+                  character: r.character||r.character_id,
+                  score: r.score,
+                  distance: r.distance||0,
+                  cigs: r.cigs||0,
+                  combo: r.combo||0,
+                  avatar: r.avatar||'⭐',
+                  rank: 0,
+                  isMe: myName ? r.username===myName : true,
+                  date: r.date||Date.now()
+                });
+              });
+              mapped.sort((a,b)=> b.score - a.score);
+              mapped.forEach((e,i)=> e.rank=i+1);
+              // keep top 30 for display
+              if (mapped.length>30) mapped = mapped.slice(0,30);
+            }
+          }catch(e){ console.warn('merge pending', e); }
+          return mapped;
+        }
+      }catch(e){
+        console.warn('[Network] PHP leaderboard failed', e.message);
+      }
+    }
+    // 2) Supabase
+    if(window.Api && window.isSupabaseConfigured){
+      try{
+        const data = await window.Api.getLeaderboard(tab, {character: char, limit:20, offset:0});
+        return data.map((r, idx)=> ({
+          username: r.username,
+          character: r.character_id,
+          score: r.score,
+          distance: r.distance || 0,
+          cigs: r.cigs || 0,
+          combo: r.combo || 0,
+          avatar: r.avatar || '⭐',
+          rank: Number(r.rank) || idx+1,
+          isMe: false,
+          date: r.created_at ? new Date(r.created_at).getTime() : Date.now()
+        }));
+      }catch(e){
+        console.warn('[Network] real leaderboard failed, fallback', e.message);
+      }
+    }
     if(this.supabase){
       try{ return await FakeBackend.fetchLeaderboard(tab,char); }catch(e){ throw e; }
     } else {
@@ -410,6 +579,9 @@ const Network = {
   }
 };
 Network.init();
+setTimeout(()=> Network.init(), 1500);
+window.addEventListener('supabase:ready', ()=> Network.init());
+window.addEventListener('php:ready', ()=> Network.init());
 
 /* ---------------- DOM ---------------- */
 const $ = id => document.getElementById(id);
@@ -2724,125 +2896,160 @@ function startRun(opts={}) {
   setTimeout(()=> hideEventBanner(), 4200);
 }
 function showOver() {
-  S.mode = 'over';
-  AU.stopMusic();
-  AU.overJingle();
-  const score=finalScore();
-  const isRecLegacy = saveRunLegacy(score);
-  // stats update
-  DB.stats.totalRuns++;
-  DB.stats.totalDistance+=Math.floor(S.dist);
-  DB.stats.totalCigs+=S.cigs;
-  DB.stats.totalNearMiss+=S.nearMiss;
-  DB.stats.totalPerfects+=S.perfects;
-  DB.stats.totalPlayTime+=Math.floor(S.t);
-  if(score>DB.stats.bestScore) DB.stats.bestScore=score;
-  if(S.dist>DB.stats.bestDistance) DB.stats.bestDistance=Math.floor(S.dist);
-  if(S.bestCombo>DB.stats.bestCombo) DB.stats.bestCombo=Math.floor(S.bestCombo);
-  if(S.cigs>(DB.stats.bestCigs||0)) DB.stats.bestCigs=S.cigs;
-  // char runs
-  DB.stats.charRuns[S.charId]=(DB.stats.charRuns[S.charId]||0)+1;
-  // most used
-  let max=0, most='parsa';
-  Object.entries(DB.stats.charRuns).forEach(([k,v])=>{ if(v>max){max=v; most=k;}});
-  DB.stats.mostUsedChar=most;
-  // night runs
-  const h=new Date().getHours();
-  if(h>=22 || h<=4) DB.stats.nightRuns=(DB.stats.nightRuns||0)+1;
-  DB.stats.pows=(DB.stats.pows||0)+S.powsCollected;
-  DB.stats.zonesSeen = DB.stats.zonesSeen || new Set();
-  S.zonesSeen.forEach(z=> DB.stats.zonesSeen.add(z));
-  // but Set not serializable, convert to array for storage
-  if(DB.stats.zonesSeen instanceof Set) { DB.stats.zonesSeen = new Set([...DB.stats.zonesSeen]); }
-  // save ghost for next run (if not challenge)
-  if(!isFriendChallenge && !isDailyChallenge){
-    DB.ghost = { seed: S.seed, trail: S.ghostTrail.slice(0,400), score, character:S.charId, date:Date.now() };
-  }
-  // reputation
-  updateReputation();
-  // missions / achievements
-  const runStats={ cigs:S.cigs, dist:Math.floor(S.dist), score, nearMiss:S.nearMiss, bestCombo:S.bestCombo, abilityUses:S.abilityUses, runs:1, charsUsed: Object.keys(DB.stats.charRuns).filter(k=>DB.stats.charRuns[k]>0).length, noPowRun: S.powsCollected===0?1:0 };
-  updateMissionsProgress(runStats);
-  // weekly total runs for missions
-  // check weekly runs mission (needs total runs)
-  DB.missions.weekly.forEach(m=>{ if(m.id==='w_runs'){ m.progress=Math.min(m.target, DB.stats.totalRuns); if(m.progress>=m.target && !m.done){m.done=true; addXP(m.xp);} } });
-  if(ACH_DEFS) updateAchievements();
-  // XP
-  const xpGain = Math.floor(score/120) + S.cigs*2 + S.nearMiss*3 + S.perfects*5 + 20;
-  const leveled = addXP(xpGain);
-  // league
-  updateLeague(score);
-  // pending run for offline sync
-  const payload = {
-    username: DB.player.username||'مهمان',
-    avatar: ['😎','🧲','🎲','🛡️','👻'][CHARS.findIndex(c=>c.id===S.charId)]||'⭐',
-    character: S.charId,
-    score, distance: Math.floor(S.dist), cigs: S.cigs, combo: Math.floor(S.bestCombo), nearMiss: S.nearMiss,
-    date: Date.now(), duration: Math.floor(S.t), seed: S.seed
-  };
-  // validate before queuing
-  if(!validateRun(payload)){
-    DB.pendingRuns.unshift(payload);
-    if(DB.pendingRuns.length>20) DB.pendingRuns.pop();
-    // try sync
-    Network.submit(payload).then(r=>{
-      toast('☁️ رکورد همگام شد! رتبه #'+faNum(r.rank));
-      DB.pendingRuns = DB.pendingRuns.filter(p=> p.date!==payload.date);
+  // Robust showOver — UI always shows even if DB/network fails (fix for "امتیاز نشان نمیدهد")
+  try { S.mode = 'over'; } catch(e){ try{ S={...S, mode:'over'}; }catch(_){ S={mode:'over'}; } }
+  try { AU.stopMusic(); AU.overJingle(); } catch(e){}
+  let score = 0;
+  let br = null;
+  let xpGain = 0;
+  let leveled = false;
+  let isRecLegacy = {isRec:false, best:0};
+  try { score = finalScore(); if (!isFinite(score) || score<0) score = Math.floor(S.dist||0) + (S.cigs||0)*25; } catch(e){ try{ score = Math.floor(S.dist||0) + (S.cigs||0)*25; }catch(_){score=0;} }
+  try { br = computeScoreBreakdown(); } catch(e){ br = {distScore: Math.floor(S.dist||0), cigCollect: S.cigScore||0, comboBonus: Math.floor((S.combo||0)*4 + (S.bestCombo||0)*8), nearBonus: S.nearMissScore||0, difficultyMul:1, tonightMul:1, eventMul:1, totalMul:1, subtotal: score, final: score}; }
+  // --- UI FIRST (guaranteed) ---
+  try {
+    if (el.ovScore) el.ovScore.textContent = faNum(score);
+    if (el.ovCigs) el.ovCigs.textContent = faNum(S.cigs||0);
+    if (el.ovDist) el.ovDist.textContent = faNum(Math.floor(S.dist||0)) + ' م';
+    if (el.ovBest) el.ovBest.textContent = faNum(Math.max(score, (DB.stats&&DB.stats.bestScore)||0));
+    if (el.ovCombo) el.ovCombo.textContent = 'x'+faNum(Math.floor(S.bestCombo||0));
+    if (el.ovNearMiss) el.ovNearMiss.textContent = faNum(S.nearMiss||0);
+  } catch(e){ console.warn('over UI head error', e); }
+  try {
+    if (el.scoreBreak && br) {
+      const xpTmp = Math.floor(score/120) + (S.cigs||0)*2 + (S.nearMiss||0)*3 + (S.perfects||0)*5 + 20;
+      el.scoreBreak.innerHTML = `
+        <div class="sbRow"><span>مسافت</span><b>${faNum(br.distScore||0)}</b></div>
+        <div class="sbRow"><span>سیگار + پرفکت</span><b>${faNum(br.cigCollect||0)}</b></div>
+        <div class="sbRow"><span>Combo</span><b>+${faNum(br.comboBonus||0)}</b></div>
+        <div class="sbRow"><span>Near Miss ⚡</span><b>+${faNum(br.nearBonus||0)}</b></div>
+        <div class="sbRow"><span>سختی ×${(br.difficultyMul||1).toFixed(2)}</span><span>امشب ×${(br.tonightMul||1).toFixed(2)}</span></div>
+        <div class="sbRow total"><span>امتیاز نهایی</span><b>${faNum(br.final||score)}</b></div>
+        <div style="font-size:11px;color:#cfc6ff;margin-top:4px">XP +${faNum(xpTmp)} • ${isDailyChallenge?'چالش روزانه': isFriendChallenge?'چالش دوست':'Run عادی'}</div>
+      `;
+    } else if (el.scoreBreak) {
+      el.scoreBreak.textContent = 'امتیاز: ' + faNum(score);
+    }
+  } catch(e){ console.warn('scoreBreak error', e); try{ if(el.scoreBreak) el.scoreBreak.textContent = 'امتیاز: '+faNum(score); }catch(_){} }
+  // --- DB / stats (safe, never blocks UI) ---
+  try {
+    try { isRecLegacy = saveRunLegacy(score); } catch(e){ isRecLegacy={isRec:false,best:score}; console.warn('saveRunLegacy',e); }
+    try {
+      DB.stats.totalRuns = (DB.stats.totalRuns||0)+1;
+      DB.stats.totalDistance = (DB.stats.totalDistance||0)+Math.floor(S.dist||0);
+      DB.stats.totalCigs = (DB.stats.totalCigs||0)+(S.cigs||0);
+      DB.stats.totalNearMiss = (DB.stats.totalNearMiss||0)+(S.nearMiss||0);
+      DB.stats.totalPerfects = (DB.stats.totalPerfects||0)+(S.perfects||0);
+      DB.stats.totalPlayTime = (DB.stats.totalPlayTime||0)+Math.floor(S.t||0);
+      if(score>(DB.stats.bestScore||0)) DB.stats.bestScore=score;
+      if((S.dist||0)>(DB.stats.bestDistance||0)) DB.stats.bestDistance=Math.floor(S.dist||0);
+      if((S.bestCombo||0)>(DB.stats.bestCombo||0)) DB.stats.bestCombo=Math.floor(S.bestCombo||0);
+      if((S.cigs||0)>(DB.stats.bestCigs||0)) DB.stats.bestCigs=S.cigs||0;
+      DB.stats.charRuns = DB.stats.charRuns||{parsa:0,mahyar:0,arsham:0,mohsen:0,farham:0};
+      DB.stats.charRuns[S.charId]=(DB.stats.charRuns[S.charId]||0)+1;
+      let max=0, most='parsa';
+      Object.entries(DB.stats.charRuns).forEach(([k,v])=>{ if(v>max){max=v; most=k;}});
+      DB.stats.mostUsedChar=most;
+      const h=new Date().getHours();
+      if(h>=22 || h<=4) DB.stats.nightRuns=(DB.stats.nightRuns||0)+1;
+      DB.stats.pows=(DB.stats.pows||0)+(S.powsCollected||0);
+      try {
+        let zs = Array.isArray(DB.stats.zonesSeen) ? new Set(DB.stats.zonesSeen) : (DB.stats.zonesSeen instanceof Set ? DB.stats.zonesSeen : new Set(Object.values(DB.stats.zonesSeen||{})));
+        if (S.zonesSeen && S.zonesSeen.forEach) S.zonesSeen.forEach(z=> zs.add(z));
+        DB.stats.zonesSeen = Array.from(zs);
+      } catch(e){ try{ DB.stats.zonesSeen = S.zonesSeen? Array.from(S.zonesSeen):[]; } catch(_e){ DB.stats.zonesSeen=[]; } }
+      if(!isFriendChallenge && !isDailyChallenge){
+        try{ DB.ghost = { seed: S.seed, trail: (S.ghostTrail||[]).slice(0,400), score, character:S.charId, date:Date.now() }; }catch(e){}
+      }
+      updateReputation();
+      const runStats={ cigs:S.cigs||0, dist:Math.floor(S.dist||0), score, nearMiss:S.nearMiss||0, bestCombo:S.bestCombo||0, abilityUses:S.abilityUses||0, runs:1, charsUsed: Object.keys(DB.stats.charRuns).filter(k=>DB.stats.charRuns[k]>0).length, noPowRun: (S.powsCollected||0)===0?1:0 };
+      try{ updateMissionsProgress(runStats); }catch(e){ console.warn('missions',e); }
+      try{ DB.missions.weekly.forEach(m=>{ if(m.id==='w_runs'){ m.progress=Math.min(m.target, DB.stats.totalRuns); if(m.progress>=m.target && !m.done){m.done=true; addXP(m.xp);} } }); }catch(e){}
+      try{ if(ACH_DEFS) updateAchievements(); }catch(e){}
+      xpGain = Math.floor(score/120) + (S.cigs||0)*2 + (S.nearMiss||0)*3 + (S.perfects||0)*5 + 20;
+      try{ leveled = addXP(xpGain); }catch(e){ leveled=false; }
+      try{ updateLeague(score); }catch(e){}
+    } catch(e){ console.warn('showOver stats error', e); }
+    // pending run for offline sync (with run_id + timestamps for real backend)
+    try{
+      const runId = (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : 'run-'+Date.now()+'-'+Math.random().toString(36).slice(2,8));
+      const startedAt = new Date(S.runStartTime||Date.now()).toISOString();
+      const finishedAt = new Date().toISOString();
+      const payload = {
+        run_id: runId,
+        username: (DB.player&&DB.player.username)||'مهمان',
+        avatar: ['😎','🧲','🎲','🛡️','👻'][CHARS.findIndex(c=>c.id===S.charId)]||'⭐',
+        character: S.charId,
+        character_id: S.charId,
+        score, distance: Math.floor(S.dist||0), cigs: S.cigs||0, combo: Math.floor(S.bestCombo||0), nearMiss: S.nearMiss||0,
+        date: Date.now(), duration: Math.floor(S.t||0), seed: S.seed||0,
+        started_at: startedAt, finished_at: finishedAt,
+        abilityUses: S.abilityUses||0, powsCollected: S.powsCollected||0,
+        environment: (ZONES[Math.floor((S.dist||0)/ZONE_LEN)%ZONES.length]?.id || 'dorm')
+      };
+      if(!validateRun(payload)){
+        const hasPhp = !!(window.PhpApi && window.phpBackendAvailable);
+        const hasSupabase = !!(window.SyncManager && window.isSupabaseConfigured);
+        if(hasSupabase){
+          try{ window.SyncManager.queueRun(payload); toast('📡 Run queued — will sync ☁️'); }catch(e){ DB.pendingRuns.unshift(payload); if(DB.pendingRuns.length>20) DB.pendingRuns.pop(); }
+          try{ if(el.syncStatus) el.syncStatus.textContent = window.SyncManager.pendingCount ? `⏳ ${faNum(window.SyncManager.pendingCount())} pending` : '☁️ Queued'; }catch(e){}
+        } else {
+          DB.pendingRuns.unshift(payload);
+          if(DB.pendingRuns.length>20) DB.pendingRuns.pop();
+          try{ saveDB(); }catch(e){}
+          Network.submit(payload).then(r=>{
+            if(r.php || r.real){
+              toast('☁️ رکورد همگام شد! رتبه #'+faNum(r.rank||1));
+              DB.pendingRuns = DB.pendingRuns.filter(p=> p.date!==payload.date);
+              try{ saveDB(); }catch(e){}
+              if(el.syncStatus) el.syncStatus.textContent='✓ همگام';
+            } else {
+              if(el.syncStatus) el.syncStatus.textContent='✓ همگام (محلی)';
+            }
+          }).catch(e=>{
+            if(el.syncStatus) el.syncStatus.textContent='📡 آفلاین — بعداً همگام میشه';
+            if(e.message==='network' || e.message==='offline' || (e.message&&e.message.includes('Failed to fetch'))) toast('📡 آفلاین — رکورد ذخیره شد, بعداً همگام میشه');
+            else console.warn('[submit] error', e.message);
+          });
+        }
+      } else {
+        console.warn('[validate] payload rejected', validateRun(payload));
+      }
+    }catch(e){ console.warn('payload error', e); }
+    // char xp
+    try{
+      DB.characters.xp[S.charId]=(DB.characters.xp[S.charId]||0)+ Math.floor(score/200);
+      const needed = (DB.characters.levels[S.charId]||1)*300;
+      if(DB.characters.xp[S.charId]>=needed){
+        DB.characters.xp[S.charId]-=needed;
+        DB.characters.levels[S.charId]++;
+        floatText(CX, BASEY-CH*1.5, '⭐ '+CHARS.find(c=>c.id===S.charId).name+' Level Up!', '#ffd93d');
+        try{ AU.levelUp(); }catch(e){}
+      }
       saveDB();
-      el.syncStatus.textContent='✓ همگام';
-    }).catch(e=>{
-      el.syncStatus.textContent='📡 آفلاین — পরে همگام میشه';
-      if(e.message==='network') toast('📡 آفلاین — رکورد ذخیره شد, بعداً همگام میشه');
-    });
-  }
-  // char xp
-  DB.characters.xp[S.charId]=(DB.characters.xp[S.charId]||0)+ Math.floor(score/200);
-  const needed = (DB.characters.levels[S.charId]||1)*300;
-  if(DB.characters.xp[S.charId]>=needed){
-    DB.characters.xp[S.charId]-=needed;
-    DB.characters.levels[S.charId]++;
-    floatText(CX, BASEY-CH*1.5, '⭐ '+CHARS.find(c=>c.id===S.charId).name+' Level Up!', '#ffd93d');
-    AU.levelUp();
-  }
-  saveDB();
-
-  // UI
-  el.ovScore.textContent = faNum(score);
-  el.ovCigs.textContent = faNum(S.cigs);
-  el.ovDist.textContent = faNum(Math.floor(S.dist)) + ' م';
-  el.ovBest.textContent = faNum(Math.max(score, DB.stats.bestScore));
-  el.ovCombo.textContent = 'x'+faNum(Math.floor(S.bestCombo));
-  el.ovNearMiss.textContent = faNum(S.nearMiss);
-  el.newRec.classList.toggle('hidden', !isRecLegacy.isRec);
-  el.levelUpBadge.classList.toggle('hidden', !leveled);
-  if(leveled) AU.levelUp();
-  // rumor
-  if(S.rumor){ el.overRumor.textContent='💬 '+S.rumor; el.overRumor.classList.remove('hidden'); } else el.overRumor.classList.add('hidden');
-  // score breakdown
-  const br=computeScoreBreakdown();
-  el.scoreBreak.innerHTML = `
-    <div class="sbRow"><span>مسافت</span><b>${faNum(br.distScore)}</b></div>
-    <div class="sbRow"><span>سیگار + پرفکت</span><b>${faNum(br.cigCollect)}</b></div>
-    <div class="sbRow"><span>Combo</span><b>+${faNum(br.comboBonus)}</b></div>
-    <div class="sbRow"><span>Near Miss ⚡</span><b>+${faNum(br.nearBonus)}</b></div>
-    <div class="sbRow"><span>سختی ×${br.difficultyMul.toFixed(2)}</span><span>امشب ×${br.tonightMul.toFixed(2)}</span></div>
-    <div class="sbRow total"><span>امتیاز نهایی</span><b>${faNum(br.final)}</b></div>
-    <div style="font-size:11px;color:#cfc6ff;margin-top:4px">XP +${faNum(xpGain)} • ${isDailyChallenge?'چالش روزانه': isFriendChallenge?'چالش دوست':'Run عادی'}</div>
-  `;
-  // rank
-  const board = FakeBackend.getLeaderboard('global');
-  const me = board.find(x=>x.isMe);
-  if(me){
-    el.overRank.textContent = `🏆 رتبه جهانی: #${faNum(me.rank)} — ${me.rank<=10?'جزو ده برتر! 🔥': me.rank<=30?'داری پیش میری! 💪':'ادامه بده!'}`;
-  } else {
-    el.overRank.textContent = '🏆 رکورد ثبت شد — برو لیگ رو چک کن!';
-  }
-  el.overEmoji.textContent = isRecLegacy.isRec ? '🎉' : (score>10000 ? '😎' : '🚔');
-  document.getElementById('overTitle').textContent = isRecLegacy.isRec ? 'رکورد ترکوندی!' : (S.nearMiss>=5 ? 'نزدیک بود! 💀' : 'گیر افتادی!');
-  showScreen('over');
-  // update menu stats
-  updateMenuStats();
+    }catch(e){ try{ saveDB(); }catch(_){} }
+  } catch(e){ console.error('showOver DB outer', e); try{ saveDB(); }catch(_){} }
+  // ensure over screen visible
+  try { showScreen('over'); } catch(e){ try{ document.getElementById('over')?.classList.remove('hidden'); }catch(_){} }
+  try{ updateMenuStats(); }catch(e){}
+  // badges / rank (after DB, but safe)
+  try {
+    if (el.newRec) el.newRec.classList.toggle('hidden', !isRecLegacy.isRec);
+    if (el.levelUpBadge) el.levelUpBadge.classList.toggle('hidden', !leveled);
+    if(leveled) try{AU.levelUp();}catch(e){}
+    if(S.rumor && el.overRumor){ el.overRumor.textContent='💬 '+S.rumor; el.overRumor.classList.remove('hidden'); } else if(el.overRumor) el.overRumor.classList.add('hidden');
+    if (el.overEmoji) el.overEmoji.textContent = isRecLegacy.isRec ? '🎉' : (score>10000 ? '😎' : '🚔');
+    const tEl = document.getElementById('overTitle');
+    if(tEl) tEl.textContent = isRecLegacy.isRec ? 'رکورد ترکوندی!' : (S.nearMiss>=5 ? 'نزدیک بود! 💀' : 'گیر افتادی!');
+    const board = FakeBackend.getLeaderboard('global');
+    const me = board.find(x=>x.isMe);
+    if(el.overRank){
+      if(me) el.overRank.textContent = `🏆 رتبه جهانی: #${faNum(me.rank)} — ${me.rank<=10?'جزو ده برتر! 🔥': me.rank<=30?'داری پیش میری! 💪':'ادامه بده!'}`;
+      else el.overRank.textContent = '🏆 رکورد ثبت شد — برو لیگ رو چک کن!';
+    }
+  } catch(e){ console.warn('over badges error', e); }
 }
+
 function toMenu() { S.mode = 'idle'; AU.stopMusic(); showScreen('menu'); updateMenuStats(); }
 function togglePause() {
   if (S.mode !== 'play') return;
@@ -2993,11 +3200,50 @@ $('toggleReduced').addEventListener('click', ()=>{ DB.settings.reducedMotion=!DB
 $('toggleContrast').addEventListener('click', ()=>{ DB.settings.highContrast=!DB.settings.highContrast; saveDB(); updateToggle('toggleContrast', DB.settings.highContrast); document.body.classList.toggle('highContrast', DB.settings.highContrast); });
 $('btnSync').addEventListener('click', async ()=>{
   el.syncStatus.textContent='☁️ Syncing...';
-  for(const p of [...DB.pendingRuns]){
-    try{ await Network.submit(p); DB.pendingRuns=DB.pendingRuns.filter(x=>x.date!==p.date); toast('☁️ همگام شد!'); } catch(e){}
+  // try PHP batch sync first
+  if(window.PhpApi && window.phpBackendAvailable && DB.pendingRuns.length>0){
+    try{
+      // map pendingRuns to PHP format
+      const batch = DB.pendingRuns.slice(0,20).map(p=>({
+        run_id: p.run_id,
+        character_id: p.character||p.character_id,
+        seed: p.seed||0,
+        score: p.score,
+        distance: p.distance,
+        best_combo: p.combo||p.best_combo||0,
+        duration: p.duration||60,
+        items: p.cigs||0,
+        near_misses: p.nearMiss||0,
+        powerups: p.powsCollected||0,
+        ability_uses: p.abilityUses||0,
+        environment: p.environment||'dorm',
+        started_at: p.started_at || new Date(p.date||Date.now()).toISOString().slice(0,19).replace('T',' '),
+        finished_at: p.finished_at || new Date().toISOString().slice(0,19).replace('T',' ')
+      }));
+      const r = await window.PhpApi.syncRuns(batch);
+      // remove succeeded ones
+      const okIds = new Set((r.results||[]).filter(x=> x.status==='ok' || x.status==='duplicate').map(x=> x.run_id));
+      DB.pendingRuns = DB.pendingRuns.filter(p=> !okIds.has(p.run_id));
+      if(okIds.size>0) toast(`☁️ ${faNum(okIds.size)} Run همگام شد!`);
+      else toast('⏳ همگام‌سازی PHP انجام شد');
+    }catch(e){
+      // fallback to per-run Network.submit
+      for(const p of [...DB.pendingRuns]){
+        try{ await Network.submit(p); DB.pendingRuns=DB.pendingRuns.filter(x=>x.date!==p.date || x.run_id!==p.run_id); toast('☁️ همگام شد!'); } catch(_e){}
+      }
+    }
+  } else {
+    for(const p of [...DB.pendingRuns]){
+      try{ await Network.submit(p); DB.pendingRuns=DB.pendingRuns.filter(x=>x.date!==p.date); toast('☁️ همگام شد!'); } catch(e){}
+    }
   }
-  saveDB(); el.syncStatus.textContent= DB.pendingRuns.length? `⏳ ${DB.pendingRuns.length} pending`:'✓ همگام';
+  saveDB(); el.syncStatus.textContent= DB.pendingRuns.length? `⏳ ${faNum(DB.pendingRuns.length)} pending`:'✓ همگام';
   showLeague(activeLeagueTab);
+});
+$('btnClearFake')?.addEventListener('click', ()=>{
+  if(confirm('لیگ فیک محلی پاک شود؟ فقط کش مرورگر (cachedBoard) پاک می‌شود، امتیازهای واقعی MySQL باقی می‌مانند.')) {
+    clearFakeLeagueData();
+  }
 });
 $('btnResetData').addEventListener('click', ()=>{
   if(confirm('همه داده‌ها پاک شود؟ این عمل برگشت‌ناپذیر است!')){

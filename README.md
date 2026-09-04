@@ -84,25 +84,34 @@ Score = (Distance + Cigs*25 + PerfectBonus + ComboBonus + NearMiss*50 + AbilityB
 ## 🗂️ معماری
 
 ```
-index.html          — 9 صفحه (menu, select, league, missions, achievements, profile, settings, records, over) + HUD + Modals
-style.css           — Glassmorphism, Gradients, Blur, Glow, Animations, Responsive
-main.js (3093 خط)   — IIFE، بدون build
-  ├─ helpers / seeded RNG
-  ├─ storage v3 + migration (SAVE_VERSION=3)
-  ├─ XP / Reputation / League
-  ├─ Missions / Achievements
-  ├─ Tonight / Rumor / Events
-  ├─ FakeBackend + Network (Supabase-ready)
-  ├─ characters (Ability + Stats + Heads)
-  ├─ rendering (sky, city, props, obstacles, items)
-  ├─ state + score + spawn (Pattern + Seed)
-  ├─ input (queue + ability)
-  ├─ update (combo, nearMiss, difficulty, ghost)
-  ├─ draw (perspective, dayNight, particles)
-  └─ UI (all screens) + loop + __FE hook
-
+index.html          — 10 صفحه (menu, select, league, missions, achievements, profile, settings, records, over, auth) + HUD + Modals + <meta supabase-url/key> + importmap @supabase/supabase-js@2.39.7
+style.css           — Glassmorphism, Gradients, Blur, Glow, Animations, Responsive (HighContrast/ReducedMotion)
+main.js (~3150 خط)  — IIFE (non-module) + Network branch (window.Api/SyncManager if isSupabaseConfigured else FakeBackend)
+  ├─ helpers / seeded RNG (mulberry32, hashStr, dailySeed)
+  ├─ storage v3 + migration (SAVE_VERSION=3, migrate fed_records_v1→dorm_v3)
+  ├─ XP / Reputation / League (xpForLevel, 6 ranks, 4 tiers)
+  ├─ Missions / Achievements (5 daily +5 weekly templates, 12 defs)
+  ├─ Tonight / Rumor / Random Events
+  ├─ FakeBackend (bots seeded, getLeaderboard 5 tabs, validateRun, submitScore) + Network (try Api.submitRun/getLeaderboard then fallback)
+  ├─ characters (5 × Passive/Active + Stats + makeHead procedural)
+  ├─ rendering (sky/city/vignette, 12 obstacles, 7 pows, 6 zones, glow)
+  ├─ state + score (expanded: distance+collect+combo+nearMiss+powerUp+mission+difficulty*tonight*event*x2)
+  ├─ spawn (Pattern A-E + Seed + no-impassable guarantee)
+  ├─ input (queue 2 + swipe/double-tap Ability)
+  ├─ update (combo decay, nearMiss slowMo, dynamic difficulty, ghost trail)
+  ├─ draw (perspective 80, dayNight tint 140s cycle, particles pool 260, shake, blackout)
+  └─ UI (all screens) + loop + __FE hook (test)
+js/
+  supabase.js  — initSupabase via esm.sh CDN, reads localStorage/meta, isSupabaseConfigured
+  auth.js      — anon/email-pass/OAuth + migrateGuest
+  api.js       — submitRun/getLeaderboard/profile/friends/challenge wrappers (RPC)
+  sync.js      — SyncManager queue pendingRuns, onStatus, retry, conflict (XP authoritative, achievements union)
+supabase/
+  config.toml
+  migrations/  — 00001_schema (16 tables) / 00002_rls / 00003_rpc / 00004_seed
+.env.example        — VITE_SUPABASE_URL / ANON_KEY / SERVICE_ROLE (server only)
 assets/characters/  — عکس واقعی ۵ کاراکتر
-test/               — harness headless
+test/               — harness.js (headless invariants 12810 frames) + systems.js (28 checks)
 ```
 
 ### Storage Schema v3 (`localStorage['dorm_v3']`)
@@ -131,71 +140,116 @@ test/               — harness headless
 
 ---
 
-## 🔌 Backend & Database
+## 🔌 Backend & Database — Supabase (Offline-First, Real)
 
-### گزینه پیشنهادی: Supabase (رایگان، JS-friendly)
+### چرا Supabase؟
+Auth (Email/Pass, Anon, OAuth Google/GitHub) + Postgres + Realtime + RLS + RPC + JS SDK از `esm.sh` — بدون سرور اختصاصی، رایگان برای شروع، JS-friendly. بازی هم **بدون Supabase کاملاً playable** است (FakeBackend) و بعداً بدون تغییر کد آنلاین می‌شود.
 
-**چرا Supabase؟** — Auth + Postgres + Realtime + RLS + JS SDK، بدون سرور اختصاصی، مناسب بازی کوچک.
-
-### Setup (۵ دقیقه)
-
-1. در [supabase.com](https://supabase.com) پروژه بساز
-2. در SQL Editor اجرا کن:
-
-```sql
-create table profiles (
-  id uuid primary key references auth.users,
-  username text unique not null,
-  friend_code text unique,
-  avatar text,
-  created_at timestamp default now()
-);
-create table scores (
-  id bigint generated always as identity primary key,
-  user_id uuid references profiles(id),
-  username text not null,
-  character text not null check (character in ('parsa','mahyar','arsham','mohsen','farham')),
-  score integer not null check (score between 0 and 999999),
-  distance integer not null,
-  cigs integer not null,
-  combo integer,
-  seed integer,
-  created_at timestamp default now()
-);
-create index idx_scores_score on scores(score desc);
-create index idx_scores_character on scores(character);
-create index idx_scores_created on scores(created_at desc);
-
--- RLS
-alter table scores enable row level security;
-create policy "read all" on scores for select using (true);
-create policy "insert own" on scores for insert with check (auth.uid() = user_id);
-
--- Daily challenge view
-create view daily_leaderboard as
-  select * from scores where created_at::date = current_date order by score desc limit 100;
+### ساختار repo
+```
+supabase/
+  config.toml                 — پورت‌ها (API 54321 / DB 54322)، Auth، Storage
+  migrations/
+    20250904000001_schema.sql — 16 جدول + ایندکس + FK + Check (profiles, scores, runs, user_characters, achievements, missions, daily_challenges, weekly_leagues, friendships, challenges, notifications ...)
+    20250904000002_rls.sql    — RLS enable + Policies (read verified scores, insert own, friendships requester/receiver, profiles update own)
+    20250904000003_rpc.sql    — submit_run (idempotency via run_id, validation, flagged), get_leaderboard (global/weekly/daily/friends/character, count(*) rank, cursor 20/50), claim_mission, create_challenge, get_daily_challenge ...
+    20250904000004_seed.sql   — 5 کاراکتر، 12 اچیومنت، 10 مأموریت، daily/weekly نمونه
+js/
+  supabase.js  — createClient از https://esm.sh/@supabase/supabase-js@2.39.7 ، خواندن URL/Key از localStorage یا <meta>، isSupabaseConfigured
+  auth.js      — signUp(email, pw, username) / signIn / signInAnonymously() / OAuth + migrateGuest(dorm_v3 → DB) با union/aggregate/server-authoritative
+  api.js       — submitRun / getLeaderboard / getProfile / friends / challenges wrapper دور RPC
+  sync.js      — SyncManager: pendingRuns queue، ONLINE→SYNCING→SYNCED، exponential backoff، conflict resolution (XP server-authoritative, achievements union, scores append)
+index.html     — <meta name="supabase-url/key"> + <script type="importmap"> برای @supabase/supabase-js + #screen-auth
+main.js        — Network branch: اگر isSupabaseConfigured → Api.submitRun / Api.getLeaderboard (با run_id UUID + started/finished) وگرنه FakeBackend
 ```
 
-3. در بازی: Settings → یا کنسول:
+### ۱۶ جدول — خلاصه
+| جدول | کلید | توضیح |
+|---|---|---|
+| `profiles` | `id uuid PK FK auth.users` | username unique، display_name، avatar، level/xp/reputation، friend_code `DORM-XXXX` unique |
+| `scores` | `id bigserial` | user_id FK، score 0..999999، distance، combo، character_id، environment، run_duration، daily/weekly id، status pending/verified/flagged/rejected |
+| `runs` | `id uuid PK (run_id)` | seed، score، distance، best_combo، items/near_misses/powerups/ability_uses، run_started/finished_at، status، idempotency |
+| `user_characters` | `user_id, character_id` | level/xp/games/best_score per char |
+| `achievements` + `user_achievements` |  | 12 اچیومنت + progress/unlocked |
+| `missions` + `user_missions` |  | daily/weekly + progress/done |
+| `daily_challenges` | `challenge_date unique` | seed، title، modifier |
+| `weekly_leagues` + `weekly_player_stats` |  | tier bronze→diamond، weekly score |
+| `friendships` | `requester/receiver` | pending/accepted/blocked + unique pair |
+| `challenges` + `challenge_results` |  | seed + creator + expires_at |
+| `notifications` |  | title/body/read برای bell 🔔 |
 
-```js
-localStorage.setItem('supabase_url', JSON.stringify("https://YOUR.supabase.co"))
-localStorage.setItem('supabase_key', JSON.stringify("YOUR_ANON_KEY"))
+ایندکس‌ها: `scores(score desc)`, `scores(character, score)`, `scores(created_at)`, `runs(user_id, created_at)`, `profiles(friend_code)`، همه با `count(*) over()` برای rank.
+
+### RLS & Security
+- `enable row level security` روی همه جداول
+- `profiles`: `update` فقط `auth.uid()=id`
+- `scores/runs`: `select` فقط `status='verified'` یا `user_id=self`؛ `insert` فقط `auth.uid()=user_id`
+- `friendships`: `select/insert/update` فقط `requester` یا `receiver`
+- **No service_role در کلاینت** — فقط `anon`؛ هیچ Secret در repo نیست (`.env.example` فقط template)
+
+### RPCs — Server-Authoritative
+- `submit_run(p_run_id uuid, p_character_id text, p_seed int, p_score int, ... p_started_at timestamptz, p_finished_at timestamptz)` →  
+  ۱) idempotency: اگر `run_id` تکراری → return موجود  
+  ۲) validation: score≤999999، distance≤20000، duration≥5s، seed rate-limit (۱/۱۰ث)، `score ≤ (dist+items*60+combo*50+5000)*1.8` → اگر نقض → `flagged`  
+  ۳) insert `runs` + `scores` + update `profiles.xp/level` + `weekly_player_stats` + `check_achievements` در یک ترنزکشن → return `rank, xp, tier`
+- `get_leaderboard(p_type text, p_character text, p_limit int, p_offset int)` → `select ... , count(*) over()` + فیلتر `daily/weekly/friends/character` + pagination 20/50 cursor
+- `claim_mission`, `create_challenge`, `send_friend_request`, `accept_friend_request`, `get_daily_challenge` — همگی با `auth.uid()` چک
+
+### Auth & Guest Migration
+- **Guest** (local) → بازی بدون لاگین (`DB.player.guest=true`, `friendCode` محلی)
+- در `#screen-auth`: `SignUp (email/pass)`, `SignIn`, `👻 Anonymous`, `Google/GitHub OAuth` (همگی via `supabase.auth.*`)
+- **Migration**: بعد از اولین `SIGNED_IN`, `auth.js:migrateGuest()` کل `dorm_v3` (scores, xp, achievements) را با `union` (achievements)، `aggregate` (stats `max`) و `server-authoritative` (xp) به DB منتقل می‌کند — هیچ Progress گم نمی‌شود. `supabase.auth.onAuthStateChange` هم migration را trigger می‌کند.
+
+### Sync — Offline-First
+```
+Local Run → validateRun() → DB.pendingRuns.unshift(payload with run_id) → saveDB()
+  ├─ if isSupabaseConfigured & online & session → SyncManager.queueRun() → Api.submitRun() → on success: remove from queue
+  └─ else FakeBackend.submitScore() → cachedBoard
+SyncManager: listeners for `online/offline`, `supabase:ready`, 30s poll, exponential backoff (max 3 fails → error), flagged/rejected handling، UI: 📡→☁️→✓
+```
+- `validateRun` هم در کلاینت (`main.js`) و هم در RPC تکرار می‌شود — cheated score → `flagged` و در Leaderboard نشان داده نمی‌شود.
+- Duplicate `run_id` → RPC return بدون duplicate row (idempotency).
+- Conflict: XP `server wins (max)`، Achievements `union`، Scores `append-only`.
+
+### Setup — لوکال (بدون Supabase هم کار می‌کند)
+```bash
+# 1) بازی بدون بک‌اند — FakeBackend
+python3 -m http.server 8000  # → http://localhost:8000 → همه فیچرها با seeded bots
+
+# 2) با Supabase واقعی — 2 روش
+# A) local Supabase (Docker)
+npm i -g supabase
+supabase start           # → API http://localhost:54321  DB 54322
+supabase db reset        # → migrations 1..4 اجرا + seed
+# بعد در مرورگر کنسول:
+localStorage.setItem('supabase_url', JSON.stringify("http://localhost:54321"))
+localStorage.setItem('supabase_key', JSON.stringify("ANON_KEY_FROM supabase status"))
 location.reload()
+
+# B) hosted (supabase.com → Project → SQL Editor → past 4 migrations)
+# سپس در index.html یا .env:
+<meta name="supabase-url" content="https://YOUR.supabase.co">
+<meta name="supabase-anon-key" content="YOUR_ANON_KEY">
+# یا localStorage مثل بالا — js/supabase.js اول meta را می‌خواند
 ```
 
-> تا وقتی کلید ست نشده، بازی با **FakeBackend** (localStorage + ربات‌های seeded) کار می‌کند — کاملاً Offline-First. بعداً بدون تغییر کد، آنلاین می‌شود.
+> تا وقتی `supabase_url/key` ست نشده، `isSupabaseConfigured===false` و بازی با **FakeBackend** (localStorage + ربات‌های seeded) کاملاً playable و testable است. بعداً بدون تغییر کد آنلاین می‌شود — حتی `SyncManager` pendingها را خودکار همگام می‌کند.
 
-### Anti-Cheat (پایه)
+### Anti-Cheat (پایه — کلاینت + سرور)
+- `score≤999999`, `distance≤20000`, `cigs≤5000`, `combo≤1000`, `character ∈ {5}`
+- `score ≤ (dist + cigs*60 + combo*50 + 5000) * 1.8` (consistency)
+- `duration<5s && score>5000` → رد؛ `distance/duration > 60m/s` → flagged (غیرممکن)
+- Rate: ۱ submit در ۱۰ث (در RPC via `last_run` check)
+- همه چک‌ها هم در `main.js:validateRun()` و هم در `submit_run()` — کلاینت trust نمی‌شود.
 
-`validateRun(payload)` قبل از هر submit:
-
-- `score <= 999999`, `distance <= 20000`, `cigs <= 5000`, `character valid`
-- `score <= (dist + cigs*60 + combo*50 +5000)*1.8` — Consistency
-- `duration <5s && score>5000` → رد
-- Rate limiting (در Supabase: ۱ ثبت در ۱۰ ثانیه با Function)
-
-هیچ Secret Key در repo نیست — فقط `anon` در `localStorage` کاربر.
+### Env — فقط anon
+```bash
+# .env.example (هرگز کامیت نکن)
+VITE_SUPABASE_URL=https://abc.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbG...
+SUPABASE_SERVICE_ROLE_KEY=... # فقط در dashboard/server — هرگز در repo/clients
+```
+در کلاینت فقط `anon` نگه داشته می‌شود (`localStorage` یا `meta`), `service_role` هرگز لو نمی‌رود.
 
 ---
 
@@ -230,8 +284,8 @@ node test/harness.js
 # → bot survived dist, perfect lines, no impassable row, restart clean, etc.
 
 # تست سیستم‌های جدید
-node /tmp/test_new2.js
-# → save version, combo, ability, validation, missions, board, seed, xp
+node test/systems.js
+# → combo/ability/nearMiss/seed/validation (score, distance cheat, too fast), 5 board tabs, XP levelUp, ghost, pendingRuns — 28 checks
 ```
 
 **تست‌های headless پوشش می‌دهند**:

@@ -11,6 +11,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<!-- Supabase config (optional — set via localStorage or replace meta) -->
+<meta name="supabase-url" content="">
+<meta name="supabase-anon-key" content="">
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.7"
+  }
+}
+</script>
 </head>
 <body>
 <div id="app">
@@ -54,6 +64,29 @@
         <button id="btnSaveUser" class="bigBtn green" style="flex:1">بریم! 🚀</button>
         <button id="btnGuest" class="bigBtn dark" style="flex:1">مهمان 👤</button>
       </div>
+      <button id="btnShowAuth" class="ghostBtn" style="padding:8px 12px;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;width:100%">قبلاً ثبت‌نام کردی؟ ورود / ثبت‌نام 🔐</button>
+    </div>
+  </section>
+
+  <!-- ======= Auth (Supabase) ======= -->
+  <section id="screen-auth" class="screen hidden">
+    <div class="logoWrap"><div class="logoEmoji">🔐</div><h1 class="logo" style="font-size:32px">ورود به خوابگاه</h1><p class="tagline">حساب بساز تا Progressت همیشه بمونه — Guest هم می‌مونه!</p></div>
+    <div class="glass" style="padding:18px;width:min(92vw,380px);display:flex;flex-direction:column;gap:12px;position:relative;z-index:1">
+      <div id="authStatus" style="font-size:12px;color:#a7f3d0;background:rgba(0,0,0,.2);padding:8px 10px;border-radius:10px"></div>
+      <input id="authEmail" class="userInput" type="email" placeholder="ایمیل — email@example.com" autocomplete="email">
+      <input id="authPassword" class="userInput" type="password" placeholder="رمز — حداقل 6 کاراکتر" autocomplete="current-password">
+      <input id="authUsername" class="userInput" maxlength="14" placeholder="نام کاربری (برای ثبت‌نام)">
+      <div class="rowBtns" style="width:100%">
+        <button id="btnSignUp" class="bigBtn green" style="flex:1">ثبت‌نام ✨</button>
+        <button id="btnSignIn" class="bigBtn blue" style="flex:1">ورود 🔑</button>
+      </div>
+      <button id="btnAnon" class="bigBtn teal" style="width:100%">ورود مهمان (Anonymous) 👻</button>
+      <div class="rowBtns" style="width:100%">
+        <button id="btnOAuthGoogle" class="bigBtn dark" style="flex:1">Google</button>
+        <button id="btnOAuthGithub" class="bigBtn dark" style="flex:1">GitHub</button>
+      </div>
+      <button id="btnBackAuth" class="bigBtn gray" style="width:100%">برگشت</button>
+      <p style="font-size:11px;color:#cfc6ff">Guest Progress به محض ورود منتقل می‌شود — هیچ امتیازی از دست نمی‌رود.</p>
     </div>
   </section>
 
@@ -195,6 +228,7 @@
       <div class="settingRow"><div class="sLabel">🌗 کنتراست بالا</div><div class="sControl"><div id="toggleContrast" class="toggle"></div></div></div>
       <div class="settingRow"><div class="sLabel">🌐 زبان</div><div class="sControl"><span style="background:rgba(255,255,255,.08);padding:6px 12px;border-radius:8px;font-weight:800">🇮🇷 فارسی</span></div></div>
       <div class="settingRow"><div class="sLabel">☁️ همگام‌سازی</div><div class="sControl"><span id="syncStatus" style="font-size:12px;color:#a7f3d0">✓ همگام</span><button id="btnSync" class="bigBtn blue" style="padding:6px 10px;font-size:12px">همگام‌سازی</button></div></div>
+      <div class="settingRow"><div class="sLabel">🧹 لیگ فیک</div><div class="sControl"><button id="btnClearFake" class="bigBtn orange" style="padding:6px 10px;font-size:12px">پاک کردن لیگ فیک</button></div></div>
       <div class="settingRow"><div class="sLabel">🗑️ بازنشانی</div><div class="sControl"><button id="btnResetData" class="bigBtn pink" style="padding:6px 12px;font-size:12px">پاک کردن داده</button></div></div>
     </div>
     <div class="rowBtns"><button id="btnBackSettings" class="bigBtn gray">برگشت</button></div>
@@ -311,8 +345,189 @@
   </div>
 
   <div id="toast" class="hidden"></div>
+  <!-- Notifications bell -->
+  <button id="notifBell" class="hidden" style="position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;z-index:15;background:rgba(20,16,60,.7);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:6px 10px;color:#fff;font-weight:800;cursor:pointer">🔔 <span id="notifCount" class="hidden" style="background:#ff5e5e;color:#fff;border-radius:999px;padding:1px 6px;font-size:11px">0</span></button>
+  <div id="notifPanel" class="hidden" style="position:absolute;top:calc(48px + env(safe-area-inset-top));left:10px;z-index:15;width:min(92vw,360px);max-height:60vh;overflow-y:auto;background:rgba(20,16,60,.92);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px"></div>
 </div>
 <noscript><p style="color:#fff;text-align:center;padding:2rem">برای اجرای بازی جاوااسکریپت را فعال کنید.</p></noscript>
 <script src="main.js"></script>
+<script type="module">
+import { supabase, isSupabaseConfigured } from './js/supabase.js'
+import { Auth } from './js/auth.js'
+import { Api } from './js/api.js'
+import { SyncManager } from './js/sync.js'
+import { PhpApi } from './js/php_api.js'
+window.supabase = supabase
+window.Api = Api
+window.Auth = Auth
+window.SyncManager = SyncManager
+window.PhpApi = PhpApi
+window.isSupabaseConfigured = isSupabaseConfigured
+
+// detect PHP backend (will set window.phpBackendAvailable via php_api.js)
+let phpAvailable = false;
+try {
+  const r = await fetch('/api/auth/session.php', { credentials:'include' });
+  if (r.ok) phpAvailable = true;
+} catch(e) { phpAvailable = false; }
+window.phpBackendAvailable = phpAvailable;
+console.log('[backend]', phpAvailable ? 'PHP' : (isSupabaseConfigured ? 'Supabase' : 'Offline'));
+
+// Auth UI wiring
+const authScreen = document.getElementById('screen-auth')
+const usernameScreen = document.getElementById('screen-username')
+function showScreenById(id){
+  document.querySelectorAll('.screen').forEach(s=> s.classList.add('hidden'))
+  document.getElementById(id)?.classList.remove('hidden')
+  document.getElementById('hud')?.classList.add('hidden')
+}
+async function updateAuthStatus(){
+  const el=document.getElementById('authStatus')
+  if(!el) return
+  if (phpAvailable) {
+    try {
+      const s = await PhpApi.session();
+      el.textContent = s.authenticated ? `✅ وارد شدی: ${s.user.username} (${s.user.email})` : '🔐 وارد نشدی — می‌تونی مهمان بازی کنی';
+    } catch(e) { el.textContent='📡 PHP بک‌اند در دسترس نیست — حالت آفلاین'; }
+  } else if(isSupabaseConfigured && supabase) {
+    supabase.auth.getSession().then(({data})=>{
+      el.textContent = data.session ? `✅ وارد شدی: ${data.session.user.email}` : '🔐 وارد نشدی — می‌تونی مهمان بازی کنی (Supabase)'
+    })
+  } else {
+    el.textContent='📡 حالت آفلاین (localStorage). برای آنلاین شدن روی هاست PHP نصب کن (/install) یا Supabase را تنظیم کن.';
+  }
+}
+document.getElementById('btnShowAuth')?.addEventListener('click', ()=>{ showScreenById('screen-auth'); updateAuthStatus() })
+document.getElementById('btnBackAuth')?.addEventListener('click', ()=> showScreenById('screen-username'))
+
+// Helper to get guest data for migration
+function getGuestData(){
+  try { return JSON.parse(localStorage.getItem('dorm_v3')||'null'); } catch(e){ return null; }
+}
+
+document.getElementById('btnSignUp')?.addEventListener('click', async ()=>{
+  const email=document.getElementById('authEmail').value.trim()
+  const pw=document.getElementById('authPassword').value
+  const username=document.getElementById('authUsername').value.trim() || email.split('@')[0]
+  if(!email||!pw||pw.length<6) return alert('ایمیل و رمز (حداقل 6) را پر کن')
+  const guestData = getGuestData();
+  try{
+    if (phpAvailable) {
+      await PhpApi.register(username, email, pw, guestData);
+      alert('✅ ثبت‌نام شد! وارد شدی.');
+      location.reload();
+    } else {
+      await Auth.signUp(email,pw,username); alert('✅ ثبت‌نام شد! اگر ایمیل تأیید لازم دارد چک کن.'); location.reload()
+    }
+  }catch(e){ alert('خطا: '+e.message)}
+})
+document.getElementById('btnSignIn')?.addEventListener('click', async ()=>{
+  const email=document.getElementById('authEmail').value.trim()
+  const pw=document.getElementById('authPassword').value
+  if(!email||!pw) return alert('ایمیل و رمز را وارد کن')
+  try{
+    if (phpAvailable) {
+      await PhpApi.login(email, pw);
+      alert('✅ خوش اومدی!'); location.reload();
+    } else {
+      await Auth.signIn(email,pw); alert('✅ خوش اومدی!'); location.reload()
+    }
+  }catch(e){ alert('خطا: '+e.message)}
+})
+document.getElementById('btnAnon')?.addEventListener('click', async ()=>{
+  try{
+    if (phpAvailable) {
+      // PHP has no anon — just guest mode locally
+      alert('👻 در نسخه PHP، مهمان به صورت محلی ذخیره می‌شود — بعداً ثبت‌نام کن تا منتقل شود');
+      showScreenById('screen-username');
+    } else {
+      await Auth.signInAnonymously(); alert('👻 مهمان Anonymous شدی'); location.reload()
+    }
+  }catch(e){ alert(e.message)}
+})
+document.getElementById('btnOAuthGoogle')?.addEventListener('click', ()=>{
+  if (phpAvailable) alert('OAuth در نسخه PHP فعلاً غیرفعال است — از ایمیل/رمز استفاده کن');
+  else Auth.signInWithOAuth('google')
+})
+document.getElementById('btnOAuthGithub')?.addEventListener('click', ()=>{
+  if (phpAvailable) alert('OAuth در نسخه PHP فعلاً غیرفعال است');
+  else Auth.signInWithOAuth('github')
+})
+
+// Notifications (try PHP first, then Supabase)
+async function loadNotifs(){
+  let notifs = [];
+  try{
+    if (phpAvailable) notifs = await PhpApi.listNotifications();
+    else if(isSupabaseConfigured) notifs = await Api.listNotifications();
+    else return;
+    const bell=document.getElementById('notifBell')
+    const count=document.getElementById('notifCount')
+    const panel=document.getElementById('notifPanel')
+    if(notifs && notifs.length>0){
+      bell.classList.remove('hidden')
+      const unread=notifs.filter(n=>!n.is_read && !n.read).length
+      if(unread>0){ count.textContent=unread; count.classList.remove('hidden')} else count.classList.add('hidden')
+      panel.innerHTML = notifs.map(n=> `<div style="background:${n.is_read||n.read?'rgba(255,255,255,.05)':'rgba(255,217,61,.12)'};border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:8px 10px;text-align:right"><div style="font-weight:800;font-size:12px">${n.title}</div><div style="font-size:11px;color:#cfc6ff">${n.body}</div><div style="font-size:10px;color:#9d92d9">${new Date(n.created_at).toLocaleString('fa-IR')}</div></div>`).join('')
+    }
+  }catch(e){}
+}
+document.getElementById('notifBell')?.addEventListener('click', ()=>{
+  document.getElementById('notifPanel')?.classList.toggle('hidden')
+})
+setTimeout(loadNotifs, 2000)
+
+// Sync status to UI (works with both)
+if (SyncManager && SyncManager.onStatus) {
+  SyncManager.onStatus((s)=>{
+    const dot=document.getElementById('syncStatus')
+    if(dot) dot.textContent = s==='synced' ? '✓ همگام' : s==='syncing' ? '☁️ Syncing...' : s==='offline' ? '📡 آفلاین' : '⚠️ خطا'
+  })
+}
+
+// Session restore: PHP
+if (phpAvailable) {
+  PhpApi.session().then(s=>{
+    if(s.authenticated && s.user){
+      console.log('[php] session', s.user.username)
+      try {
+        const dbRaw=localStorage.getItem('dorm_v3')
+        if(dbRaw){
+          const db=JSON.parse(dbRaw)
+          db.player.username = s.user.username
+          db.player.friendCode = s.user.friend_code
+          db.xp.level = s.user.level
+          db.xp.xp = s.user.xp
+          localStorage.setItem('dorm_v3', JSON.stringify(db))
+        }
+      } catch(e){}
+    }
+  }).catch(()=>{});
+} else if(isSupabaseConfigured){
+  supabase.auth.getSession().then(({data})=>{
+    if(data.session){
+      console.log('[auth] session exists', data.session.user.id)
+      Api.getProfile().then(p=>{
+        if(p){
+          const dbRaw=localStorage.getItem('dorm_v3')
+          if(dbRaw){
+            const db=JSON.parse(dbRaw)
+            db.player.username = p.username
+            db.player.friendCode = p.friend_code
+            db.xp.level = p.level
+            db.xp.xp = p.xp
+            localStorage.setItem('dorm_v3', JSON.stringify(db))
+          }
+        }
+      }).catch(()=>{})
+    }
+  })
+  supabase.auth.onAuthStateChange((event, session)=>{
+    console.log('[auth] state', event)
+    if(event==='SIGNED_IN') setTimeout(()=> SyncManager.syncPendingRuns(), 1500)
+  })
+}
+updateAuthStatus()
+</script>
 </body>
 </html>
